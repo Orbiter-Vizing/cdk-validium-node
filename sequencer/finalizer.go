@@ -338,7 +338,7 @@ func (f *finalizer) finalizeBatches(ctx context.Context) {
 		tx := f.worker.GetBestFittingTx(f.batch.remainingResources)
 		metrics.WorkerProcessingTime(time.Since(start))
 		if tx != nil {
-			log.Debugf("processing tx: %s", tx.Hash.Hex())
+			log.Debugf("current batchNum: %d，processing tx: %s", f.batch.batchNumber, tx.Hash.Hex())
 			showNotFoundTxLog = true
 
 			firstTxProcess := true
@@ -362,7 +362,7 @@ func (f *finalizer) finalizeBatches(ctx context.Context) {
 		} else {
 			// wait for new txs
 			if showNotFoundTxLog {
-				log.Debug("no transactions to be processed. Waiting...")
+				log.Debugf("current batchNum: %d, no transactions to be processed. Waiting...", f.batch.batchNumber)
 				showNotFoundTxLog = false
 			}
 			if f.cfg.SleepDuration.Duration > 0 {
@@ -799,7 +799,8 @@ func (f *finalizer) handleProcessTransactionResponse(ctx context.Context, tx *Tx
 		response:      result.Responses[0],
 		batchResponse: result,
 		batchNumber:   f.batch.batchNumber,
-		timestamp:     f.batch.timestamp,
+		//timestamp:     f.batch.timestamp,
+		timestamp:     now(),
 		coinbase:      f.batch.coinbase,
 		oldStateRoot:  oldStateRoot,
 		isForcedBatch: false,

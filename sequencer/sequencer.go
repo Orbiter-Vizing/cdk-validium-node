@@ -116,8 +116,8 @@ func (s *Sequencer) Start(ctx context.Context) {
 	go closingSignalsManager.Start()
 
 	go s.purgeOldPoolTxs(ctx)
-	tickerProcessTxs := time.NewTicker(s.cfg.WaitPeriodPoolIsEmpty.Duration)
-	defer tickerProcessTxs.Stop()
+	//tickerProcessTxs := time.NewTicker(s.cfg.WaitPeriodPoolIsEmpty.Duration)
+	//defer tickerProcessTxs.Stop()
 
 	// Expire too old txs in the worker
 	go func() {

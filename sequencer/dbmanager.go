@@ -134,7 +134,7 @@ func (d *dbManager) loadFromPool() {
 	for {
 		time.Sleep(d.cfg.PoolRetrievalInterval.Duration)
 
-		poolTransactions, err := d.txPool.GetNonWIPPendingTxs(d.ctx)
+		poolTransactions, err := d.txPool.GetNonWIPPendingTxs(d.ctx, 200)
 		if err != nil && err != pool.ErrNotFound {
 			log.Errorf("load tx from pool: %v", err)
 		}
@@ -270,7 +270,7 @@ func (d *dbManager) StoreProcessedTxAndDeleteFromPool(ctx context.Context, tx tr
 		return err
 	}
 
-	l2BlockHeader, err := d.state.StoreTransaction(ctx, tx.batchNumber, tx.response, tx.coinbase, uint64(tx.timestamp.Unix()), tx.egpLog, dbTx)
+	l2BlockHeader, err := d.state.StoreTransaction(ctx, tx.batchNumber, tx.response, tx.coinbase, uint64(tx.timestamp.UTC().Unix()), tx.egpLog, dbTx)
 	if err != nil {
 		return err
 	}

@@ -336,6 +336,10 @@ func (w *Worker) GetBestFittingTx(resources state.BatchResources) *TxTracker {
 		log.Infof("GetBestFittingTx found tx(%s) at index(%d) with gasPrice(%d)", tx.Hash.String(), foundAt, tx.GasPrice)
 	}
 
+	if tx == nil {
+		log.Debugf("txSortedList len: %d", w.txSortedList.len())
+	}
+
 	return tx
 }
 
