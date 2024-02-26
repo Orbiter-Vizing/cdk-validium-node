@@ -334,10 +334,21 @@ func (w *Worker) GetBestFittingTx(resources state.BatchResources) *TxTracker {
 
 	if foundAt != -1 {
 		log.Infof("GetBestFittingTx found tx(%s) at index(%d) with gasPrice(%d)", tx.Hash.String(), foundAt, tx.GasPrice)
-	}
-
-	if tx == nil {
-		log.Debugf("txSortedList len: %d", w.txSortedList.len())
+		/*} else if rand.Int()%13 == 0 {
+		addrQueueHasCount := 0
+		readyTxCount := 0
+		for _, v := range w.pool {
+			if len(v.notReadyTxs) > 0 {
+				addrQueueHasCount++
+			}
+			if v.readyTx != nil {
+				readyTxCount++
+			}
+		}
+		if w.txSortedList.len() > 0 || addrQueueHasCount > 0 || readyTxCount > 0 {
+			log.Debugf("txSortedList len: %d, pool addrQueue has count: %d, pool readyTx count: %d",
+				w.txSortedList.len(), addrQueueHasCount, readyTxCount)
+		}*/
 	}
 
 	return tx

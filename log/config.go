@@ -8,6 +8,9 @@ type Config struct {
 	Environment LogEnvironment `mapstructure:"Environment" jsonschema:"enum=production,enum=development"`
 	// Level of log. As lower value more logs are going to be generated
 	Level string `mapstructure:"Level" jsonschema:"enum=debug,enum=info,enum=warn,enum=error,enum=dpanic,enum=panic,enum=fatal"`
+	// Log file
+	File string `mapstructure:"File"`
 	// Outputs
-	Outputs []string `mapstructure:"Outputs"`
+	Outputs   []string `mapstructure:"Outputs"`
+	Errorputs []string `mapstructure:"Errorputs"`
 }

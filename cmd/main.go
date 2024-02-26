@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/0xPolygonHermez/zkevm-node"
 	"github.com/0xPolygonHermez/zkevm-node/config"
@@ -95,6 +97,7 @@ var (
 )
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	app := cli.NewApp()
 	app.Name = appName
 	app.Version = zkevm.Version

@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -54,7 +55,7 @@ func getDefaultLog() *Logger {
 // should be added at the outputs array. To avoid printing the logs but storing
 // them on a file, can use []string{"pathtofile.log"}
 func Init(cfg Config) {
-	zapLogger, _, err := NewLogger(cfg)
+	zapLogger, _, err := NewLogger2(cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -84,6 +85,7 @@ func NewLogger(cfg Config) (*zap.SugaredLogger, *zap.AtomicLevel, error) {
 	}
 	zapCfg.Level = level
 	zapCfg.OutputPaths = cfg.Outputs
+	zapCfg.ErrorOutputPaths = cfg.Errorputs
 	zapCfg.InitialFields = map[string]interface{}{
 		"version": zkevm.Version,
 		"pid":     os.Getpid(),
@@ -96,6 +98,39 @@ func NewLogger(cfg Config) (*zap.SugaredLogger, *zap.AtomicLevel, error) {
 	defer logger.Sync() //nolint:gosec,errcheck
 
 	// skip 2 callers: one for our wrapper methods and one for the package functions
+	withOptions := logger.WithOptions(zap.AddCallerSkip(2)) //nolint:gomnd
+	return withOptions.Sugar(), &level, nil
+}
+
+func NewLogger2(cfg Config) (*zap.SugaredLogger, *zap.AtomicLevel, error) {
+	var level zap.AtomicLevel
+	err := level.UnmarshalText([]byte(cfg.Level))
+	if err != nil {
+		return nil, nil, fmt.Errorf("error on setting log level: %s", err)
+	}
+
+	encoderConfig := zap.NewProductionEncoderConfig()
+	if cfg.Environment == EnvironmentDevelopment {
+		encoderConfig = zap.NewDevelopmentEncoderConfig()
+	}
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+
+	lumberJackLogger := &lumberjack.Logger{
+		Filename:   cfg.File, // 日志文件路径
+		MaxSize:    10,       // 每个日志文件的最大大小（以MB为单位）
+		MaxBackups: 5,        // 保留的旧日志文件的最大数量
+		MaxAge:     10,       // 最多保留的天数
+		Compress:   false,    // 是否压缩旧日志文件
+	}
+	core := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(encoderConfig),
+		zapcore.NewMultiWriteSyncer(zapcore.AddSync(lumberJackLogger)),
+		level,
+	)
+
+	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+	defer logger.Sync()                                     //nolint:gosec,errcheck
 	withOptions := logger.WithOptions(zap.AddCallerSkip(2)) //nolint:gomnd
 	return withOptions.Sugar(), &level, nil
 }

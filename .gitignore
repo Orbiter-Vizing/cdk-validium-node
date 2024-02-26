@@ -25,5 +25,6 @@ cmd/__debug_bin
 
 .venv
 
+deploy.sh
 *metrics.txt
 coverage.out

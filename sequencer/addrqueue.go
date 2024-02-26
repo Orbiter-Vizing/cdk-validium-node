@@ -55,6 +55,8 @@ func (a *addrQueue) addTx(tx *TxTracker) (newReadyTx, prevReadyTx, replacedTx *T
 				a.readyTx = tx
 				return tx, oldReadyTx, repTx, nil
 			} else { // If there is not enough balance we set the new tx as notReadyTxs
+				log.Debugf("[addTx] from: %s, a.currentBalance(%d) < tx.Cost(%d)",
+					a.from.Hex(), a.currentBalance.Int64(), tx.Cost.Int64())
 				a.readyTx = nil
 				a.notReadyTxs[tx.Nonce] = tx
 				return nil, oldReadyTx, repTx, nil
@@ -63,6 +65,7 @@ func (a *addrQueue) addTx(tx *TxTracker) (newReadyTx, prevReadyTx, replacedTx *T
 			return nil, nil, nil, ErrDuplicatedNonce
 		}
 	} else if a.currentNonce > tx.Nonce {
+		log.Debugf("[addTx] from: %s, a.currentNonce(%d) != tx.Nonce(%d)", a.from.Hex(), a.currentNonce, tx.Nonce)
 		return nil, nil, nil, runtime.ErrIntrinsicInvalidNonce
 	}
 
@@ -73,6 +76,14 @@ func (a *addrQueue) addTx(tx *TxTracker) (newReadyTx, prevReadyTx, replacedTx *T
 			// if it is a different tx then we need to return the replaced tx to set as failed in the pool
 			repTx = nrTx
 		}
+		if nrTx != nil {
+			log.Debugf("[addTx] from: %s, nonce: %d, tx.GasPrice(%d) >= nrTx.GasPrice(%d)",
+				a.from.Hex(), tx.Nonce, tx.GasPrice.Int64(), nrTx.GasPrice.Int64())
+		} else {
+			log.Debugf("[addTx] from: %s, nonce: %d, tx.GasPrice(%d)",
+				a.from.Hex(), tx.Nonce, tx.GasPrice.Int64())
+		}
+
 		return nil, nil, repTx, nil
 	} else {
 		// We have an already notReadytx with the same nonce and better gas price, we discard the new tx
@@ -182,6 +193,8 @@ func (a *addrQueue) updateCurrentNonceBalance(nonce *uint64, balance *big.Int) (
 				log.Infof("Deleting notReadyTx with nonce %d from addrQueue %s", txTracker.Nonce, a.fromStr)
 				delete(a.notReadyTxs, txTracker.Nonce)
 			}
+		} else {
+			log.Debugf("currentNonce(%d) != nonce(%d)", a.currentNonce, nonce)
 		}
 	}
 
@@ -203,6 +216,9 @@ func (a *addrQueue) updateCurrentNonceBalance(nonce *uint64, balance *big.Int) (
 				a.readyTx = nrTx
 				log.Infof("Moving notReadyTx %s to readyTx for addrQueue %s", nrTx.HashStr, a.fromStr)
 				delete(a.notReadyTxs, a.currentNonce)
+			} else {
+				log.Infof("from: %s, currentNonce: %d, current balance insufficient: %d",
+					a.from.Hex(), a.currentNonce, a.currentBalance.Int64())
 			}
 		}
 	}
