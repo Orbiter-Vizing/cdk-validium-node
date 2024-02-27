@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -414,6 +415,19 @@ func (c *Client) monitorTx(ctx context.Context, mTx monitoredTx, logger *log.Log
 			err := c.etherman.SendTx(ctx, signedTx)
 			if err != nil {
 				logger.Errorf("failed to send tx %v to network: %v", signedTx.Hash().String(), err)
+				if strings.Contains(err.Error(), "nonce too low") {
+					logger.Infof("send tx need update nonce")
+					err := c.reviewMonitoredTxNonce(ctx, &mTx, logger)
+					if err != nil {
+						logger.Errorf("failed to review monitored tx nonce: %v", err)
+						return
+					}
+					err = c.storage.Update(ctx, mTx, nil)
+					if err != nil {
+						logger.Errorf("failed to update monitored tx nonce change: %v", err)
+						return
+					}
+				}
 				return
 			}
 			logger.Infof("signed tx sent to the network: %v", signedTx.Hash().String())
