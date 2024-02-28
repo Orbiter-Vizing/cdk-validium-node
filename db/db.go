@@ -32,7 +32,11 @@ func NewSQLDB(cfg Config) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 	if cfg.EnableLog {
-		config.ConnConfig.Logger = logger{}
+		l, err := NewLogger(cfg)
+		if err != nil {
+			panic(err)
+		}
+		config.ConnConfig.Logger = logger{log: l, slowTime: cfg.LogSlowTime}
 	}
 	conn, err := pgxpool.ConnectConfig(context.Background(), config)
 	if err != nil {

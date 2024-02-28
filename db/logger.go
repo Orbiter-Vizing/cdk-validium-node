@@ -3,25 +3,33 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/0xPolygonHermez/zkevm-node/log"
 	"github.com/jackc/pgx/v4"
 )
 
-type logger struct{}
+type logger struct {
+	log      *Logger
+	slowTime int64
+}
 
 func (l logger) Log(ctx context.Context, level pgx.LogLevel, msg string, data map[string]interface{}) {
+	queryTimeStr := fmt.Sprintf("%s", data["time"])
+	queryTime, _ := time.ParseDuration(queryTimeStr)
+	if queryTime.Milliseconds() < l.slowTime {
+		return
+	}
 	m := fmt.Sprintf("%s %v", msg, data)
 
 	switch level {
 	case pgx.LogLevelInfo:
-		log.Info(m)
+		l.log.Info(m)
 	case pgx.LogLevelWarn:
-		log.Warn(m)
+		l.log.Warn(m)
 	case pgx.LogLevelError:
-		log.Error(m)
+		l.log.Error(m)
 	default:
 		m = fmt.Sprintf("%s %s %v", level.String(), msg, data)
-		log.Debug(m)
+		l.log.Debug(m)
 	}
 }

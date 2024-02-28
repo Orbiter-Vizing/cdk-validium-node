@@ -100,9 +100,10 @@ func (p *PostgresStorage) AddBlock(ctx context.Context, block *Block, dbTx pgx.T
 
 // GetTxsOlderThanNL1Blocks get txs hashes to delete from tx pool
 func (p *PostgresStorage) GetTxsOlderThanNL1Blocks(ctx context.Context, nL1Blocks uint64, dbTx pgx.Tx) ([]common.Hash, error) {
-	var batchNum, blockNum uint64
+	var minBatchNum, maxBatchNum, blockNum uint64
 	const getBatchNumByBlockNumFromVirtualBatch = "SELECT batch_num FROM state.virtual_batch WHERE block_num <= $1 ORDER BY batch_num DESC LIMIT 1"
-	const getTxsHashesBeforeBatchNum = "SELECT hash FROM state.transaction JOIN state.l2block ON state.transaction.l2_block_num = state.l2block.block_num AND state.l2block.batch_num <= $1"
+	const getBatchNumByBlockNumFromVerifyBatch = "SELECT batch_num FROM state.verified_batch WHERE block_num <= $1 ORDER BY batch_num DESC LIMIT 1"
+	const getTxsHashesBeforeBatchNum = "SELECT hash FROM state.transaction JOIN state.l2block ON state.transaction.l2_block_num = state.l2block.block_num AND state.l2block.batch_num >= $1 AND state.l2block.batch_num <= $2"
 
 	e := p.getExecQuerier(dbTx)
 
@@ -118,13 +119,19 @@ func (p *PostgresStorage) GetTxsOlderThanNL1Blocks(ctx context.Context, nL1Block
 		return nil, errors.New("blockNumDiff is too big, there are no txs to delete")
 	}
 
-	err = e.QueryRow(ctx, getBatchNumByBlockNumFromVirtualBatch, blockNum).Scan(&batchNum)
+	err = e.QueryRow(ctx, getBatchNumByBlockNumFromVirtualBatch, blockNum).Scan(&maxBatchNum)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	} else if err != nil {
 		return nil, err
 	}
-	rows, err := e.Query(ctx, getTxsHashesBeforeBatchNum, batchNum)
+	err = e.QueryRow(ctx, getBatchNumByBlockNumFromVerifyBatch, blockNum).Scan(&minBatchNum)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	rows, err := e.Query(ctx, getTxsHashesBeforeBatchNum, minBatchNum, maxBatchNum)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	} else if err != nil {
