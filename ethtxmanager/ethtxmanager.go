@@ -69,6 +69,7 @@ func (c *Client) Add(ctx context.Context, owner, id string, from common.Address,
 		log.Errorf(err.Error())
 		return err
 	}
+	log.Infof("[eth tx manager] [Add] from: %s, to: %s, nonce: %d, data: %v", from, to, nonce, common.Bytes2Hex(data))
 	// get gas
 	gas, err := c.etherman.EstimateGas(ctx, from, to, value, data)
 	if err != nil {

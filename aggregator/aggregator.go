@@ -168,22 +168,22 @@ func (a *Aggregator) Channel(stream prover.AggregatorService_ChannelServer) erro
 	if ok {
 		proverAddr = p.Addr
 	}
-	prover, err := prover.New(stream, proverAddr, a.cfg.ProofStatePollingInterval)
+	proverCli, err := prover.New(stream, proverAddr, a.cfg.ProofStatePollingInterval)
 	if err != nil {
 		return err
 	}
 
-	log := log.WithFields(
-		"prover", prover.Name(),
-		"proverId", prover.ID(),
-		"proverAddr", prover.Addr(),
+	l := log.WithFields(
+		"prover", proverCli.Name(),
+		"proverId", proverCli.ID(),
+		"proverAddr", proverCli.Addr(),
 	)
-	log.Info("Establishing stream connection with prover")
+	l.Info("Establishing stream connection with prover")
 
 	// Check if prover supports the required Fork ID
-	if !prover.SupportsForkID(a.cfg.ForkId) {
+	if !proverCli.SupportsForkID(a.cfg.ForkId) {
 		err := errors.New("prover does not support required fork ID")
-		log.Warn(FirstToUpper(err.Error()))
+		l.Warn(FirstToUpper(err.Error()))
 		return err
 	}
 
@@ -197,31 +197,31 @@ func (a *Aggregator) Channel(stream prover.AggregatorService_ChannelServer) erro
 			return ctx.Err()
 
 		default:
-			isIdle, err := prover.IsIdle()
+			isIdle, err := proverCli.IsIdle()
 			if err != nil {
-				log.Errorf("Failed to check if prover is idle: %v", err)
+				l.Errorf("Failed to check if prover is idle: %v", err)
 				time.Sleep(a.cfg.RetryTime.Duration)
 				continue
 			}
 			if !isIdle {
-				log.Debug("Prover is not idle")
+				l.Debug("Prover is not idle")
 				time.Sleep(a.cfg.RetryTime.Duration)
 				continue
 			}
 
-			_, err = a.tryBuildFinalProof(ctx, prover, nil)
+			_, err = a.tryBuildFinalProof(ctx, proverCli, nil)
 			if err != nil {
-				log.Errorf("Error checking proofs to verify: %v", err)
+				l.Errorf("Error checking proofs to verify: %v", err)
 			}
 
-			proofGenerated, err := a.tryAggregateProofs(ctx, prover)
+			proofGenerated, err := a.tryAggregateProofs(ctx, proverCli)
 			if err != nil {
-				log.Errorf("Error trying to aggregate proofs: %v", err)
+				l.Errorf("Error trying to aggregate proofs: %v", err)
 			}
 			if !proofGenerated {
-				proofGenerated, err = a.tryGenerateBatchProof(ctx, prover)
+				proofGenerated, err = a.tryGenerateBatchProof(ctx, proverCli)
 				if err != nil {
-					log.Errorf("Error trying to generate proof: %v", err)
+					l.Errorf("Error trying to generate proof: %v", err)
 				}
 			}
 			if !proofGenerated {
@@ -417,6 +417,10 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 			return false, fmt.Errorf("failed to validate eligible final proof, %w", err)
 		}
 		if !eligible {
+			return false, nil
+		}
+		finalBatch, _ := a.State.GetBatchByNumber(ctx, proof.BatchNumberFinal, nil)
+		if finalBatch != nil && finalBatch.LocalExitRoot == state.ZeroHash {
 			return false, nil
 		}
 	}

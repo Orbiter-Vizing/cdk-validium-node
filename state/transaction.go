@@ -769,7 +769,7 @@ func (s *State) ProcessUnsignedTransaction(ctx context.Context, tx *types.Transa
 
 // ProcessUnsignedTransaction processes the given unsigned transaction.
 func (s *State) internalProcessUnsignedTransaction(ctx context.Context, tx *types.Transaction, senderAddress common.Address, l2BlockNumber *uint64, noZKEVMCounters bool, dbTx pgx.Tx) (*ProcessBatchResponse, error) {
-	var attempts = 1
+	var attempts = 0
 
 	if s.executorClient == nil {
 		return nil, ErrExecutorNil
@@ -843,28 +843,28 @@ func (s *State) internalProcessUnsignedTransaction(ctx context.Context, tx *type
 		processBatchRequest.NoCounters = cTrue
 	}
 
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.OldBatchNum]: %v", processBatchRequest.OldBatchNum)
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.From]: %v", processBatchRequest.From)
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.OldStateRoot]: %v", hex.EncodeToHex(processBatchRequest.OldStateRoot))
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.globalExitRoot]: %v", hex.EncodeToHex(processBatchRequest.GlobalExitRoot))
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.OldAccInputHash]: %v", hex.EncodeToHex(processBatchRequest.OldAccInputHash))
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.EthTimestamp]: %v", processBatchRequest.EthTimestamp)
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.Coinbase]: %v", processBatchRequest.Coinbase)
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.UpdateMerkleTree]: %v", processBatchRequest.UpdateMerkleTree)
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.ChainId]: %v", processBatchRequest.ChainId)
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.ForkId]: %v", processBatchRequest.ForkId)
-	log.Debugf("internalProcessUnsignedTransaction[processBatchRequest.ContextId]: %v", processBatchRequest.ContextId)
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.OldBatchNum]: %v", processBatchRequest.OldBatchNum)
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.From]: %v", processBatchRequest.From)
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.OldStateRoot]: %v", hex.EncodeToHex(processBatchRequest.OldStateRoot))
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.globalExitRoot]: %v", hex.EncodeToHex(processBatchRequest.GlobalExitRoot))
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.OldAccInputHash]: %v", hex.EncodeToHex(processBatchRequest.OldAccInputHash))
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.EthTimestamp]: %v", processBatchRequest.EthTimestamp)
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.Coinbase]: %v", processBatchRequest.Coinbase)
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.UpdateMerkleTree]: %v", processBatchRequest.UpdateMerkleTree)
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.ChainId]: %v", processBatchRequest.ChainId)
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.ForkId]: %v", processBatchRequest.ForkId)
+	log.Debugf("internalProcessUnsignedTransaction [processBatchRequest.ContextId]: %v", processBatchRequest.ContextId)
 
 	// Send Batch to the Executor
-	processBatchResponse, err := s.executorClient.ProcessBatch(ctx, processBatchRequest)
+	processBatchRes, err := s.executorClient.ProcessBatch(ctx, processBatchRequest)
 	if err != nil {
-		if status.Code(err) == codes.ResourceExhausted || (processBatchResponse != nil && processBatchResponse.Error == executor.ExecutorError(executor.ExecutorError_EXECUTOR_ERROR_DB_ERROR)) {
+		if status.Code(err) == codes.ResourceExhausted || (processBatchRes != nil && processBatchRes.Error == executor.ExecutorError_EXECUTOR_ERROR_DB_ERROR) {
 			log.Errorf("error processing unsigned transaction ", err)
 			for attempts < s.cfg.MaxResourceExhaustedAttempts {
 				time.Sleep(s.cfg.WaitOnResourceExhaustion.Duration)
-				log.Errorf("retrying to process unsigned transaction")
-				processBatchResponse, err = s.executorClient.ProcessBatch(ctx, processBatchRequest)
-				if status.Code(err) == codes.ResourceExhausted || (processBatchResponse != nil && processBatchResponse.Error == executor.ExecutorError(executor.ExecutorError_EXECUTOR_ERROR_DB_ERROR)) {
+				log.Errorf("retrying to process unsigned transaction, attempts: %d", attempts)
+				processBatchRes, err = s.executorClient.ProcessBatch(ctx, processBatchRequest)
+				if status.Code(err) == codes.ResourceExhausted || (processBatchRes != nil && processBatchRes.Error == executor.ExecutorError_EXECUTOR_ERROR_DB_ERROR) {
 					log.Errorf("error processing unsigned transaction ", err)
 					attempts++
 					continue
@@ -874,12 +874,12 @@ func (s *State) internalProcessUnsignedTransaction(ctx context.Context, tx *type
 		}
 
 		if err != nil {
-			if status.Code(err) == codes.ResourceExhausted || (processBatchResponse != nil && processBatchResponse.Error == executor.ExecutorError(executor.ExecutorError_EXECUTOR_ERROR_DB_ERROR)) {
+			if status.Code(err) == codes.ResourceExhausted || (processBatchRes != nil && processBatchRes.Error == executor.ExecutorError_EXECUTOR_ERROR_DB_ERROR) {
 				log.Error("reporting error as time out")
 				return nil, runtime.ErrGRPCResourceExhaustedAsTimeout
 			}
 			// Log the error
-			event := &event.Event{
+			evt := &event.Event{
 				ReceivedAt:  time.Now(),
 				Source:      event.Source_Node,
 				Level:       event.Level_Error,
@@ -887,7 +887,7 @@ func (s *State) internalProcessUnsignedTransaction(ctx context.Context, tx *type
 				Description: fmt.Sprintf("error processing unsigned transaction %s: %v", tx.Hash(), err),
 			}
 
-			err2 := s.eventLog.LogEvent(context.Background(), event)
+			err2 := s.eventLog.LogEvent(context.Background(), evt)
 			if err2 != nil {
 				log.Errorf("error logging event %v", err2)
 			}
@@ -896,19 +896,19 @@ func (s *State) internalProcessUnsignedTransaction(ctx context.Context, tx *type
 		}
 	}
 
-	if err == nil && processBatchResponse.Error != executor.ExecutorError_EXECUTOR_ERROR_NO_ERROR {
-		err = executor.ExecutorErr(processBatchResponse.Error)
-		s.eventLog.LogExecutorError(ctx, processBatchResponse.Error, processBatchRequest)
+	if processBatchRes != nil && processBatchRes.Error != executor.ExecutorError_EXECUTOR_ERROR_NO_ERROR {
+		err = executor.ExecutorErr(processBatchRes.Error)
+		s.eventLog.LogExecutorError(ctx, processBatchRes.Error, processBatchRequest)
 		return nil, err
 	}
 
-	response, err := s.convertToProcessBatchResponse(processBatchResponse)
+	response, err := s.convertToProcessBatchResponse(processBatchRes)
 	if err != nil {
 		return nil, err
 	}
 
-	if processBatchResponse.Responses[0].Error != executor.RomError_ROM_ERROR_NO_ERROR {
-		err := executor.RomErr(processBatchResponse.Responses[0].Error)
+	if processBatchRes.Responses[0].Error != executor.RomError_ROM_ERROR_NO_ERROR {
+		err := executor.RomErr(processBatchRes.Responses[0].Error)
 		if !isEVMRevertError(err) {
 			return response, err
 		}

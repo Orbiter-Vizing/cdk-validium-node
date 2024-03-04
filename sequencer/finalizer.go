@@ -685,41 +685,45 @@ func (f *finalizer) processTransaction(ctx context.Context, tx *TxTracker, first
 	}
 
 	log.Infof("processTransaction: single tx. Batch.BatchNumber: %d, BatchNumber: %d, OldStateRoot: %s, txHash: %s, GER: %s", f.batch.batchNumber, f.processRequest.BatchNumber, f.processRequest.OldStateRoot, hashStr, f.processRequest.GlobalExitRoot.String())
-	processBatchResponse, err := f.executor.ProcessBatch(ctx, f.processRequest, true)
-	if err != nil && errors.Is(err, runtime.ErrExecutorDBError) {
-		log.Errorf("failed to process transaction: %s", err)
-		return nil, err
-	} else if err == nil && !processBatchResponse.IsRomLevelError && len(processBatchResponse.Responses) == 0 && tx != nil {
-		err = fmt.Errorf("executor returned no errors and no responses for tx: %s", tx.HashStr)
-		f.halt(ctx, err)
-	} else if processBatchResponse.IsExecutorLevelError && tx != nil {
-		log.Errorf("error received from executor. Error: %v", err)
-		// Delete tx from the worker
-		f.worker.DeleteTx(tx.Hash, tx.From)
-
-		// Set tx as invalid in the pool
-		errMsg := processBatchResponse.ExecutorError.Error()
-		err = f.dbManager.UpdateTxStatus(ctx, tx.Hash, pool.TxStatusInvalid, false, &errMsg)
-		if err != nil {
-			log.Errorf("failed to update status to invalid in the pool for tx: %s, err: %s", tx.Hash.String(), err)
-		} else {
-			metrics.TxProcessed(metrics.TxProcessedLabelInvalid, 1)
+	processBatchRes, err := f.executor.ProcessBatch(ctx, f.processRequest, true)
+	if err != nil {
+		if errors.Is(err, runtime.ErrExecutorDBError) {
+			log.Errorf("failed to process transaction: %s", err)
 		}
 		return nil, err
+	} else if processBatchRes != nil {
+		if !processBatchRes.IsRomLevelError && len(processBatchRes.Responses) == 0 && tx != nil {
+			err = fmt.Errorf("executor returned no errors and no responses for tx: %s", tx.HashStr)
+			f.halt(ctx, err)
+		} else if processBatchRes.IsExecutorLevelError && tx != nil {
+			log.Errorf("error received from executor. Error: %v", err)
+			// Delete tx from the worker
+			f.worker.DeleteTx(tx.Hash, tx.From)
+
+			// Set tx as invalid in the pool
+			errMsg := processBatchRes.ExecutorError.Error()
+			err = f.dbManager.UpdateTxStatus(ctx, tx.Hash, pool.TxStatusInvalid, false, &errMsg)
+			if err != nil {
+				log.Errorf("failed to update status to invalid in the pool for tx: %s, err: %s", tx.Hash.String(), err)
+			} else {
+				metrics.TxProcessed(metrics.TxProcessedLabelInvalid, 1)
+			}
+			return nil, err
+		}
 	}
 
 	oldStateRoot := f.batch.stateRoot
-	if len(processBatchResponse.Responses) > 0 && tx != nil {
-		errWg, err = f.handleProcessTransactionResponse(ctx, tx, processBatchResponse, oldStateRoot)
+	if len(processBatchRes.Responses) > 0 && tx != nil {
+		errWg, err = f.handleProcessTransactionResponse(ctx, tx, processBatchRes, oldStateRoot)
 		if err != nil {
 			return errWg, err
 		}
 	}
 	// Update in-memory batch and processRequest
-	f.processRequest.OldStateRoot = processBatchResponse.NewStateRoot
-	f.batch.stateRoot = processBatchResponse.NewStateRoot
-	f.batch.localExitRoot = processBatchResponse.NewLocalExitRoot
-	log.Infof("processTransaction: data loaded in memory. batch.batchNumber: %d, batchNumber: %d, result.NewStateRoot: %s, result.NewLocalExitRoot: %s, oldStateRoot: %s", f.batch.batchNumber, f.processRequest.BatchNumber, processBatchResponse.NewStateRoot.String(), processBatchResponse.NewLocalExitRoot.String(), oldStateRoot.String())
+	f.processRequest.OldStateRoot = processBatchRes.NewStateRoot
+	f.batch.stateRoot = processBatchRes.NewStateRoot
+	f.batch.localExitRoot = processBatchRes.NewLocalExitRoot
+	log.Infof("processTransaction: data loaded in memory. batch.batchNumber: %d, batchNumber: %d, result.NewStateRoot: %s, result.NewLocalExitRoot: %s, oldStateRoot: %s", f.batch.batchNumber, f.processRequest.BatchNumber, processBatchRes.NewStateRoot.String(), processBatchRes.NewLocalExitRoot.String(), oldStateRoot.String())
 
 	return nil, nil
 }

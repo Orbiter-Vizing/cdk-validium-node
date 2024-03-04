@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"time"
 
 	"github.com/0xPolygonHermez/zkevm-node/hex"
@@ -344,12 +346,33 @@ func (s *State) sendBatchRequestToExecutor(ctx context.Context, processBatchRequ
 		log.Debugf("processBatch[processBatchRequest.ContextId]: %v", processBatchRequest.ContextId)
 	}
 	now := time.Now()
-	res, err := s.executorClient.ProcessBatch(ctx, processBatchRequest)
-	if err != nil {
-		log.Errorf("Error s.executorClient.ProcessBatch: %v", err)
-		log.Errorf("Error s.executorClient.ProcessBatch: %s", err.Error())
-		log.Errorf("Error s.executorClient.ProcessBatch response: %v", res)
-	} else if res.Error != executor.ExecutorError_EXECUTOR_ERROR_NO_ERROR {
+	var res *executor.ProcessBatchResponse
+	var err error
+	execRetries := 0
+	for execRetries < s.cfg.MaxResourceExhaustedAttempts {
+		res, err = s.executorClient.ProcessBatch(ctx, processBatchRequest)
+		if err != nil {
+			log.Errorf("retries: %d, Error s.executorClient.ProcessBatch: %s", execRetries, err.Error())
+			log.Errorf("Error s.executorClient.ProcessBatch response: %v", res)
+			rpcErr, ok := status.FromError(err)
+			if ok && (rpcErr.Code() == codes.ResourceExhausted ||
+				rpcErr.Code() == codes.DeadlineExceeded || rpcErr.Code() == codes.Unavailable ||
+				rpcErr.Code() == codes.Internal || rpcErr.Code() == codes.Unauthenticated) {
+				time.Sleep(s.cfg.WaitOnResourceExhaustion.Duration)
+				execRetries++
+				continue
+			}
+		}
+		if res != nil && res.Error == executor.ExecutorError_EXECUTOR_ERROR_DB_ERROR {
+			log.Errorf("retries: %d, Error s.executorClient.ProcessBatch response: %v", execRetries, res)
+			time.Sleep(s.cfg.WaitOnResourceExhaustion.Duration)
+			execRetries++
+			continue
+		} else {
+			break
+		}
+	}
+	if res != nil && res.Error != executor.ExecutorError_EXECUTOR_ERROR_NO_ERROR {
 		err = executor.ExecutorErr(res.Error)
 		s.eventLog.LogExecutorError(ctx, res.Error, processBatchRequest)
 	}
