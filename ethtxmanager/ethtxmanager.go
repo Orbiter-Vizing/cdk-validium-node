@@ -687,6 +687,10 @@ func (c *Client) ProcessPendingMonitoredTxs(ctx context.Context, owner string, r
 
 				// refresh the result info
 				result, err := c.Result(ctx, owner, result.ID, dbTx)
+				if err == context.Canceled {
+					mTxResultLogger.Errorf("failed to get monitored tx result, context canceled, err: %v", err)
+					return
+				}
 				if err != nil {
 					mTxResultLogger.Errorf("failed to get monitored tx result, err: %v", err)
 					continue

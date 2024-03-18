@@ -1379,7 +1379,7 @@ func TestIsSynced(t *testing.T) {
 				tc.setup(m, &a)
 			}
 
-			synced := a.isSynced(a.ctx, tc.batchNum)
+			_, synced := a.isSynced(a.ctx, tc.batchNum)
 
 			assert.Equal(tc.synced, synced)
 		})

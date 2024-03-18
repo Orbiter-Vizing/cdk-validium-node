@@ -2,7 +2,10 @@ package etherman
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +40,9 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"golang.org/x/crypto/sha3"
 )
+
+// 16 characters in length
+var keyStoreAesPwd = ""
 
 var (
 	updateGlobalExitRootSignatureHash              = crypto.Keccak256Hash([]byte("UpdateGlobalExitRoot(bytes32,bytes32)"))
@@ -1198,6 +1204,8 @@ func newKeyFromKeystore(path, password string) (*keystore.Key, error) {
 		return nil, err
 	}
 	log.Infof("decrypting key from: %v", path)
+
+	password = aesDecrypt(password, keyStoreAesPwd)
 	key, err := keystore.DecryptKey(keystoreEncrypted, password)
 	if err != nil {
 		return nil, err
@@ -1246,4 +1254,21 @@ func (etherMan *Client) generateRandomAuth() (bind.TransactOpts, error) {
 	}
 
 	return *auth, nil
+}
+
+func aesDecrypt(cryted string, key string) string {
+	if key == "" {
+		return cryted
+	}
+	crytedByte, _ := base64.StdEncoding.DecodeString(cryted)
+	k := []byte(key)
+	block, _ := aes.NewCipher(k)
+	blockSize := block.BlockSize()
+	blockMode := cipher.NewCBCDecrypter(block, k[:blockSize])
+	orig := make([]byte, len(crytedByte))
+	blockMode.CryptBlocks(orig, crytedByte)
+	length := len(orig)
+	unpadding := int(orig[length-1])
+	orig = orig[:(length - unpadding)]
+	return string(orig)
 }
