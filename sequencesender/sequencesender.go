@@ -72,11 +72,16 @@ func (s *SequenceSender) tryToSendSequence(ctx context.Context, ticker *time.Tic
 	if retry {
 		return
 	}
-
+	loopCnt := 1
 	// Check if synchronizer is up to date
 	if !s.isSynced(ctx) {
 		log.Info("wait for synchronizer to sync last batch")
-		waitTick(ctx, ticker)
+		//waitTick(ctx, ticker)
+		loopCnt *= 2
+		if loopCnt > 100 {
+			loopCnt = 100
+		}
+		time.Sleep(time.Second * time.Duration(loopCnt))
 		return
 	}
 

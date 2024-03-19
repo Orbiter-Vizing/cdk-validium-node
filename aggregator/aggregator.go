@@ -372,14 +372,19 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 		return false, nil
 	}
 	log.Debug("Send final proof time reached")
-
+	loopCnt := 1
 	err, isSync := a.isSynced(ctx, nil)
 	for !isSync {
 		if err == context.Canceled {
 			return false, err
 		}
 		log.Info("Waiting for synchronizer to sync...")
-		time.Sleep(a.cfg.RetryTime.Duration)
+		//time.Sleep(a.cfg.RetryTime.Duration)
+		loopCnt *= 2
+		if loopCnt > 100 {
+			loopCnt = 100
+		}
+		time.Sleep(time.Second * time.Duration(loopCnt))
 		continue
 	}
 
@@ -1066,13 +1071,19 @@ func (a *Aggregator) handleMonitoredTxResult(result ethtxmanager.MonitoredTxResu
 
 	// wait for the synchronizer to catch up the verified batches
 	log.Debug("A final proof has been sent, waiting for the network to be synced")
+	loopCnt := 1
 	err, isSync := a.isSynced(a.ctx, &proofBatchNumberFinal)
 	for !isSync {
 		if err == context.Canceled {
 			return
 		}
 		log.Info("Waiting for synchronizer to sync...")
-		time.Sleep(a.cfg.RetryTime.Duration)
+		//time.Sleep(a.cfg.RetryTime.Duration)
+		loopCnt *= 2
+		if loopCnt > 100 {
+			loopCnt = 100
+		}
+		time.Sleep(time.Second * time.Duration(loopCnt))
 	}
 
 	// network is synced with the final proof, we can safely delete all recursive

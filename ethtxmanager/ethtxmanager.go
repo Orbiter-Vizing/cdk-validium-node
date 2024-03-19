@@ -679,11 +679,16 @@ func (c *Client) ProcessPendingMonitoredTxs(ctx context.Context, owner string, r
 				resultHandler(result, dbTx)
 				continue
 			}
-
+			loopCnt := 1
 			// if the result is either not confirmed or failed, it means we need to wait until it gets confirmed of failed.
 			for {
 				// wait before refreshing the result info
-				time.Sleep(time.Second)
+				//time.Sleep(time.Second)
+				loopCnt *= 2
+				if loopCnt > 100 {
+					loopCnt = 100
+				}
+				time.Sleep(time.Second * time.Duration(loopCnt))
 
 				// refresh the result info
 				result, err := c.Result(ctx, owner, result.ID, dbTx)
