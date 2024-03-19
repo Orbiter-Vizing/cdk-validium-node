@@ -54,7 +54,18 @@ func New(cfg Config, state stateInterface, etherman etherman, manager ethTxManag
 func (s *SequenceSender) Start(ctx context.Context) {
 	ticker := time.NewTicker(s.cfg.WaitPeriodSendSequence.Duration)
 	for {
-		s.tryToSendSequence(ctx, ticker)
+		select {
+		case <-ticker.C:
+			s.tryToSendSequence(ctx, ticker)
+			s.ethTxManager.ProcessPendingMonitoredTxs(ctx, ethTxManagerOwner, func(result ethtxmanager.MonitoredTxResult, dbTx pgx.Tx) {
+				if result.Status == ethtxmanager.MonitoredTxStatusFailed {
+					mTxResultLogger := ethtxmanager.CreateMonitoredTxResultLogger(ethTxManagerOwner, result)
+					mTxResultLogger.Error("failed to send sequence, TODO: review this fatal and define what to do in this case")
+				}
+			}, nil)
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -94,7 +105,7 @@ func (s *SequenceSender) tryToSendSequence(ctx context.Context, ticker *time.Tic
 		} else {
 			log.Info("waiting for sequences to be worth sending to L1")
 		}
-		waitTick(ctx, ticker)
+		//waitTick(ctx, ticker)
 		return
 	}
 
