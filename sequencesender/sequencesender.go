@@ -52,6 +52,7 @@ func New(cfg Config, state stateInterface, etherman etherman, manager ethTxManag
 
 // Start starts the sequence sender
 func (s *SequenceSender) Start(ctx context.Context) {
+	metrics.Register()
 	ticker := time.NewTicker(s.cfg.WaitPeriodSendSequence.Duration)
 	for {
 		select {
