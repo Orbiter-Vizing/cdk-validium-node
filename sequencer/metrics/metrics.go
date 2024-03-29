@@ -10,8 +10,6 @@ import (
 const (
 	// Prefix for the metrics of the sequencer package.
 	Prefix = "sequencer_"
-	// SequencesSentToL1CountName is the name of the metric that counts the sequences sent to L1.
-	SequencesSentToL1CountName = Prefix + "sequences_sent_to_L1_count"
 	// GasPriceEstimatedAverageName is the name of the metric that shows the average estimated gas price.
 	GasPriceEstimatedAverageName = Prefix + "gas_price_estimated_average"
 	// TxProcessedName is the name of the metric that counts the processed transactions.
@@ -55,10 +53,6 @@ func Register() {
 	)
 
 	counters = []prometheus.CounterOpts{
-		{
-			Name: SequencesSentToL1CountName,
-			Help: "[SEQUENCER] total count of sequences sent to L1",
-		},
 		{
 			Name: SequencesOversizedDataErrorName,
 			Help: "[SEQUENCER] total count of sequences with oversized data error",
@@ -110,12 +104,6 @@ func Register() {
 // AverageGasPrice sets the gauge to the given average gas price.
 func AverageGasPrice(price float64) {
 	metrics.GaugeSet(GasPriceEstimatedAverageName, price)
-}
-
-// SequencesSentToL1 increases the counter by the provided number of sequences
-// sent to L1.
-func SequencesSentToL1(numSequences float64) {
-	metrics.CounterAdd(SequencesSentToL1CountName, numSequences)
 }
 
 // TxProcessed increases the counter vector by the provided transactions count

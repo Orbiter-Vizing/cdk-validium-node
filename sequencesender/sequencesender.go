@@ -5,13 +5,13 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/0xPolygonHermez/zkevm-node/sequencesender/metrics"
 	"time"
 
 	"github.com/0xPolygonHermez/zkevm-node/etherman/types"
 	"github.com/0xPolygonHermez/zkevm-node/ethtxmanager"
 	"github.com/0xPolygonHermez/zkevm-node/event"
 	"github.com/0xPolygonHermez/zkevm-node/log"
-	"github.com/0xPolygonHermez/zkevm-node/sequencer/metrics"
 	"github.com/0xPolygonHermez/zkevm-node/state"
 	"github.com/jackc/pgx/v4"
 )
