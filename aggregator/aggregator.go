@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"strconv"
@@ -160,7 +161,10 @@ func (a *Aggregator) Stop() {
 // Prover client and the Aggregator server.
 func (a *Aggregator) Channel(stream prover.AggregatorService_ChannelServer) error {
 	metrics.ConnectedProver()
-	defer metrics.DisconnectedProver()
+	defer func() {
+		log.Info("metrics.DisconnectedProver")
+		metrics.DisconnectedProver()
+	}()
 
 	ctx := stream.Context()
 	var proverAddr net.Addr
@@ -198,6 +202,9 @@ func (a *Aggregator) Channel(stream prover.AggregatorService_ChannelServer) erro
 
 		default:
 			isIdle, err := proverCli.IsIdle()
+			if err != nil && err == io.EOF {
+				return err
+			}
 			if err != nil {
 				l.Errorf("Failed to check if prover is idle: %v", err)
 				time.Sleep(a.cfg.RetryTime.Duration)
