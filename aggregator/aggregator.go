@@ -385,7 +385,7 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 		if err == context.Canceled {
 			return false, err
 		}
-		log.Info("Waiting for synchronizer to sync...")
+		log.Infof("Waiting for synchronizer to sync..., err: %v", err)
 		//time.Sleep(a.cfg.RetryTime.Duration)
 		loopCnt *= 2
 		if loopCnt > 100 {
