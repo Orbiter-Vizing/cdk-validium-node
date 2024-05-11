@@ -97,6 +97,7 @@ func (d *DebugEndpoints) TraceTransaction(hash types.ArgHash, cfg *traceConfig) 
 // TraceBlockByNumber creates a response for debug_traceBlockByNumber request.
 // See https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#debugtraceblockbynumber
 func (d *DebugEndpoints) TraceBlockByNumber(number types.BlockNumber, cfg *traceConfig) (interface{}, types.Error) {
+	return nil, nil
 	return d.txMan.NewDbTxScope(d.state, func(ctx context.Context, dbTx pgx.Tx) (interface{}, types.Error) {
 		blockNumber, rpcErr := number.GetNumericBlockNumber(ctx, d.state, d.etherman, dbTx)
 		if rpcErr != nil {
@@ -122,6 +123,7 @@ func (d *DebugEndpoints) TraceBlockByNumber(number types.BlockNumber, cfg *trace
 // TraceBlockByHash creates a response for debug_traceBlockByHash request.
 // See https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-debug#debugtraceblockbyhash
 func (d *DebugEndpoints) TraceBlockByHash(hash types.ArgHash, cfg *traceConfig) (interface{}, types.Error) {
+	return nil, nil
 	return d.txMan.NewDbTxScope(d.state, func(ctx context.Context, dbTx pgx.Tx) (interface{}, types.Error) {
 		block, err := d.state.GetL2BlockByHash(ctx, hash.Hash(), dbTx)
 		if errors.Is(err, state.ErrNotFound) {
@@ -157,6 +159,7 @@ func (d *DebugEndpoints) TraceBlockByHash(hash types.ArgHash, cfg *traceConfig) 
 // -> picked jRPC server group trace transaction responses from other jRPC servers
 // -> picked jRPC respond the initial request to the user with all the tx traces
 func (d *DebugEndpoints) TraceBatchByNumber(httpRequest *http.Request, number types.BatchNumber, cfg *traceConfig) (interface{}, types.Error) {
+	return nil, nil
 	type traceResponse struct {
 		blockNumber uint64
 		txIndex     uint64
