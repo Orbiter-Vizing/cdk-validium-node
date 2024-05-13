@@ -387,9 +387,9 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 		}
 		log.Infof("Waiting for synchronizer to sync..., err: %v", err)
 		//time.Sleep(a.cfg.RetryTime.Duration)
-		loopCnt *= 2
-		if loopCnt > 100 {
-			loopCnt = 100
+		loopCnt *= 3
+		if loopCnt > 300 {
+			return false, err
 		}
 		time.Sleep(time.Second * time.Duration(loopCnt))
 		continue
@@ -1084,7 +1084,7 @@ func (a *Aggregator) handleMonitoredTxResult(result ethtxmanager.MonitoredTxResu
 		if err == context.Canceled {
 			return
 		}
-		log.Info("Waiting for synchronizer to sync...")
+		log.Infof("Waiting for synchronizer to sync..., err: %v", err)
 		//time.Sleep(a.cfg.RetryTime.Duration)
 		loopCnt *= 2
 		if loopCnt > 100 {
