@@ -40,7 +40,7 @@ func (p *PostgresPoolStorage) CheckPolicy(ctx context.Context, policy pool.Polic
 		return false, nil
 	}
 
-	var allow bool
+	var allow bool = true
 	err = rows.Scan(&allow)
 	if err != nil {
 		return false, err
