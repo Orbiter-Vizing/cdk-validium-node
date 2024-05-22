@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 
@@ -175,6 +176,13 @@ func Load(ctx *cli.Context, loadNetworkConfig bool) (*Config, error) {
 	err = viper.Unmarshal(&cfg, decodeHooks...)
 	if err != nil {
 		return nil, err
+	}
+
+	privs := viper.GetString("ETHTXMANAGER_PRIVATEKEYS")
+	if privs != "" {
+		if err := json.Unmarshal([]byte(privs), &cfg.EthTxManager.PrivateKeys); err != nil {
+			return nil, err
+		}
 	}
 
 	if loadNetworkConfig {
