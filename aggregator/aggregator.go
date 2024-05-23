@@ -389,7 +389,7 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 		//time.Sleep(a.cfg.RetryTime.Duration)
 		loopCnt *= 3
 		if loopCnt > 300 {
-			return false, err
+			return false, context.Canceled
 		}
 		time.Sleep(time.Second * time.Duration(loopCnt))
 		continue
