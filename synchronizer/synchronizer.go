@@ -1827,9 +1827,14 @@ func (s *ClientSynchronizer) halt(ctx context.Context, err error) {
 		log.Errorf("error storing Synchronizer halt event: %v", eventErr)
 	}
 
+	cnt := 0
 	for {
 		log.Errorf("fatal error: %s", err)
 		log.Error("halting the Synchronizer")
 		time.Sleep(5 * time.Second) //nolint:gomnd
+		cnt++
+		if cnt > 50 {
+			log.Fatalf("fatal error: %s", err)
+		}
 	}
 }
