@@ -17,7 +17,7 @@ import (
 type LogEnvironment string
 
 const (
-	// EnvironmentProduction production log environment.
+	// EnvironmentProduction production log environment
 	EnvironmentProduction = LogEnvironment("production")
 	// EnvironmentDevelopment development log environment.
 	EnvironmentDevelopment = LogEnvironment("development")
