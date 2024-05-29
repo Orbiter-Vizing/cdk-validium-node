@@ -392,6 +392,7 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 			return false, context.Canceled
 		}
 		time.Sleep(time.Second * time.Duration(loopCnt))
+		err, isSync = a.isSynced(ctx, nil)
 		continue
 	}
 
@@ -1091,6 +1092,7 @@ func (a *Aggregator) handleMonitoredTxResult(result ethtxmanager.MonitoredTxResu
 			loopCnt = 100
 		}
 		time.Sleep(time.Second * time.Duration(loopCnt))
+		err, isSync = a.isSynced(a.ctx, &proofBatchNumberFinal)
 	}
 
 	// network is synced with the final proof, we can safely delete all recursive
