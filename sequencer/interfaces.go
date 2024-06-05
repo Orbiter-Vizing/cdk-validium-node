@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jackc/pgx/v4"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 // Consumer interfaces required by the package.
@@ -29,6 +30,8 @@ type txPool interface {
 	GetGasPrices(ctx context.Context) (pool.GasPrices, error)
 	GetDefaultMinGasPriceAllowed() uint64
 	GetL1AndL2GasPrice() (uint64, uint64)
+	DeleteReorgedTransactions(ctx context.Context, txs []*ethTypes.Transaction) error
+	StoreTx(ctx context.Context, tx ethTypes.Transaction, ip string, isWIP bool) error
 }
 
 // etherman contains the methods required to interact with ethereum.
@@ -82,6 +85,8 @@ type stateInterface interface {
 	GetDSBatches(ctx context.Context, firstBatchNumber, lastBatchNumber uint64, readWIPBatch bool, dbTx pgx.Tx) ([]*state.DSBatch, error)
 	GetDSL2Blocks(ctx context.Context, firstBatchNumber, lastBatchNumber uint64, dbTx pgx.Tx) ([]*state.DSL2Block, error)
 	GetDSL2Transactions(ctx context.Context, firstL2Block, lastL2Block uint64, dbTx pgx.Tx) ([]*state.DSL2Transaction, error)
+	GetReorgedTransactions(ctx context.Context, batchNumber uint64, dbTx pgx.Tx) ([]*ethTypes.Transaction, error)
+	ResetTrustedState(ctx context.Context, batchNumber uint64, dbTx pgx.Tx) error
 }
 
 type workerInterface interface {
@@ -133,4 +138,5 @@ type dbManagerInterface interface {
 	StoreProcessedTxAndDeleteFromPool(ctx context.Context, tx transactionToStore) error
 	GetForcedBatch(ctx context.Context, forcedBatchNumber uint64, dbTx pgx.Tx) (*state.ForcedBatch, error)
 	GetForkIDByBatchNumber(batchNumber uint64) uint64
+	GetReorgedTransactions(ctx context.Context, batchNumber uint64, dbTx pgx.Tx) ([]*ethTypes.Transaction, error)
 }

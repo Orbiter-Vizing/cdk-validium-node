@@ -108,7 +108,7 @@ func (s *Sequencer) Start(ctx context.Context) {
 		streamServer = dbManager.streamServer
 	}
 
-	finalizer := newFinalizer(s.cfg.Finalizer, s.poolCfg, worker, dbManager, s.state, s.address, s.isSynced, closingSignalCh, s.batchCfg.Constraints, s.eventLog, streamServer)
+	finalizer := newFinalizer(s.cfg.Finalizer, s.poolCfg, s.pool, worker, dbManager, s.state, s.address, s.isSynced, closingSignalCh, s.batchCfg.Constraints, s.eventLog, streamServer)
 	currBatch, processingReq := s.bootstrap(ctx, dbManager, finalizer)
 	go finalizer.Start(ctx, currBatch, processingReq)
 

@@ -726,3 +726,9 @@ func (d *dbManager) GetForcedBatch(ctx context.Context, forcedBatchNumber uint64
 func (d *dbManager) GetForkIDByBatchNumber(batchNumber uint64) uint64 {
 	return d.state.GetForkIDByBatchNumber(batchNumber)
 }
+
+
+// GetReorgedTransactions returns the transactions that were reorged
+func (d *dbManager) GetReorgedTransactions(ctx context.Context, batchNumber uint64, dbTx pgx.Tx) ([]*types.Transaction, error) {
+	return d.state.GetReorgedTransactions(ctx, batchNumber, dbTx)
+}
