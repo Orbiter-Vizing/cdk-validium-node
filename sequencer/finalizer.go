@@ -40,7 +40,7 @@ type finalizer struct {
 	closingSignalCh    ClosingSignalCh
 	isSynced           func(ctx context.Context) bool
 	sequencerAddress   common.Address
-	tpool 			   txPool
+	tpool              txPool
 	worker             workerInterface
 	dbManager          dbManagerInterface
 	executor           stateInterface
@@ -127,7 +127,7 @@ func newFinalizer(
 		cfg:                cfg,
 		closingSignalCh:    closingSignalCh,
 		isSynced:           isSynced,
-		tpool: 				tpool,
+		tpool:              tpool,
 		sequencerAddress:   sequencerAddr,
 		worker:             worker,
 		dbManager:          dbManager,
@@ -517,7 +517,7 @@ func (f *finalizer) newWIPBatch(ctx context.Context) (*WipBatch, error) {
 		_, err := f.reprocessFullBatch(ctx, f.batch.batchNumber, f.batch.initialStateRoot, f.batch.stateRoot)
 		if err != nil {
 			if err == ErrProcessBatchOOC {
-				_ = f.reorgPool(ctx, f.batch.batchNumber)
+				f.reorgPool(ctx, f.batch.batchNumber)
 			}
 			// There is an error reprocessing the batch. We halt the execution of the Sequencer at this point
 			f.halt(ctx, fmt.Errorf("halting Sequencer because of error reprocessing full batch %d (sanity check). Error: %s ", f.batch.batchNumber, err))
@@ -527,7 +527,7 @@ func (f *finalizer) newWIPBatch(ctx context.Context) (*WipBatch, error) {
 		go func() {
 			_, err = f.reprocessFullBatch(ctx, f.batch.batchNumber, f.batch.initialStateRoot, f.batch.stateRoot)
 			if err == ErrProcessBatchOOC {
-				_ = f.reorgPool(ctx, f.batch.batchNumber)
+				f.reorgPool(ctx, f.batch.batchNumber)
 			}
 		}()
 	}
@@ -599,30 +599,30 @@ func (f *finalizer) newWIPBatch(ctx context.Context) (*WipBatch, error) {
 	return batch, err
 }
 
-func (f *finalizer) reorgPool(ctx context.Context, batchNumber uint64) error {
+func (f *finalizer) reorgPool(ctx context.Context, batchNumber uint64) {
 	dbTx, err := f.executor.BeginStateTransaction(ctx)
 	// Get transactions that have to be included in the pool again
 	txs, err := f.executor.GetReorgedTransactions(ctx, batchNumber, dbTx)
 	if err != nil {
 		log.Errorf("error getting txs from trusted state. BatchNumber: %d, error: %v", batchNumber, err)
-		return err
+		return
 	}
-	log.Debug("Reorged transactions: ", txs)
+	log.Debugf("Reorged transactions: %+v", txs)
 
 	// Remove txs from the pool
 	err = f.tpool.DeleteReorgedTransactions(ctx, txs)
 	if err != nil {
 		log.Errorf("error deleting txs from the pool. BatchNumber: %d, error: %v", batchNumber, err)
 		_ = dbTx.Rollback(ctx)
-		return err
+		return
 	}
 	log.Debug("Delete reorged transactions")
 
-	err = f.executor.ResetTrustedState(ctx, batchNumber - 1, dbTx)
+	err = f.executor.ResetTrustedState(ctx, batchNumber-1, dbTx)
 	if err != nil {
 		log.Errorf("error resetting trusted state. BatchNumber: %d, error: %v", batchNumber, err)
 		_ = dbTx.Rollback(ctx)
-		return err
+		return
 	}
 
 	// Add txs to the pool
@@ -633,14 +633,13 @@ func (f *finalizer) reorgPool(ctx context.Context, batchNumber uint64) error {
 		if err != nil {
 			log.Errorf("error storing tx into the pool again. TxHash: %s. BatchNumber: %d, error: %v", tx.Hash().String(), batchNumber, err)
 			_ = dbTx.Rollback(ctx)
-			return err
+			return
 		}
 		log.Debug("Reorged transactions inserted in the pool: ", tx.Hash())
 	}
 
-	return nil
+	log.Fatal("sequencer exit......")
 }
-
 
 // processTransaction processes a single transaction.
 func (f *finalizer) processTransaction(ctx context.Context, tx *TxTracker, firstTxProcess bool) (errWg *sync.WaitGroup, err error) {
