@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1122,7 +1123,9 @@ func (f *finalizer) syncWithState(ctx context.Context, lastBatchNum *uint64) err
 	} else {
 		f.batch, err = f.dbManager.GetWIPBatch(ctx)
 		if err != nil {
-			f.reorgPool(ctx, lastBatch.BatchNumber)
+			if strings.Contains(err.Error(), "ZKCounter: ") {
+				f.reorgPool(ctx, lastBatch.BatchNumber)
+			}
 			return fmt.Errorf("failed to get work-in-progress batch, err: %w", err)
 		}
 	}
