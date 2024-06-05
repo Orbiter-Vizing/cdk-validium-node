@@ -633,10 +633,11 @@ func (f *finalizer) reorgPool(ctx context.Context, batchNumber uint64) {
 		err = f.tpool.StoreTx(ctx, *tx, "", true)
 		if err != nil {
 			log.Errorf("error storing tx into the pool again. TxHash: %s. BatchNumber: %d, error: %v", tx.Hash().String(), batchNumber, err)
-			_ = dbTx.Rollback(ctx)
-			return
+			//_ = dbTx.Rollback(ctx)
+			//return
+		} else {
+			log.Debug("Reorged transactions inserted in the pool: ", tx.Hash())
 		}
-		log.Debug("Reorged transactions inserted in the pool: ", tx.Hash())
 	}
 
 	log.Fatal("sequencer exit......")
