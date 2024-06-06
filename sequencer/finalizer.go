@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -517,9 +516,6 @@ func (f *finalizer) newWIPBatch(ctx context.Context) (*WipBatch, error) {
 		// Do the full batch reprocess now
 		_, err := f.reprocessFullBatch(ctx, f.batch.batchNumber, f.batch.initialStateRoot, f.batch.stateRoot)
 		if err != nil {
-			if err == ErrProcessBatchOOC {
-				f.reorgPool(ctx, f.batch.batchNumber)
-			}
 			// There is an error reprocessing the batch. We halt the execution of the Sequencer at this point
 			f.halt(ctx, fmt.Errorf("halting Sequencer because of error reprocessing full batch %d (sanity check). Error: %s ", f.batch.batchNumber, err))
 		}
@@ -527,9 +523,6 @@ func (f *finalizer) newWIPBatch(ctx context.Context) (*WipBatch, error) {
 		// Do the full batch reprocess in parallel
 		go func() {
 			_, err = f.reprocessFullBatch(ctx, f.batch.batchNumber, f.batch.initialStateRoot, f.batch.stateRoot)
-			if err == ErrProcessBatchOOC {
-				f.reorgPool(ctx, f.batch.batchNumber)
-			}
 		}()
 	}
 
@@ -1124,9 +1117,6 @@ func (f *finalizer) syncWithState(ctx context.Context, lastBatchNum *uint64) err
 	} else {
 		f.batch, err = f.dbManager.GetWIPBatch(ctx)
 		if err != nil {
-			if strings.Contains(err.Error(), "ZKCounter: ") {
-				f.reorgPool(ctx, lastBatch.BatchNumber)
-			}
 			return fmt.Errorf("failed to get work-in-progress batch, err: %w", err)
 		}
 	}
