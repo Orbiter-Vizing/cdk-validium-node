@@ -2852,10 +2852,9 @@ func (p *PostgresStorage) GetDSBatches(ctx context.Context, firstBatchNumber, la
 
 	e := p.getExecQuerier(dbTx)
 	rows, err := e.Query(ctx, getBatchByNumberSQL, firstBatchNumber, lastBatchNumber)
-	if err != nil {
-		return nil, err
-	}
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	} else if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
