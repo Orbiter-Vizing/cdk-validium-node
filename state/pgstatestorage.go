@@ -41,9 +41,15 @@ func NewPostgresStorage(cfg Config, db *pgxpool.Pool) *PostgresStorage {
 // getExecQuerier determines which execQuerier to use, dbTx or the main pgxpool
 func (p *PostgresStorage) getExecQuerier(dbTx pgx.Tx) execQuerier {
 	if dbTx != nil {
-		return dbTx
+		return p.getExecQuerierReconnect(dbTx)
 	}
-	return p
+	return p.getExecQuerierReconnect(p)
+}
+
+func (p *PostgresStorage) getExecQuerierReconnect(e execQuerier) ExecQuerierReconnect {
+	return ExecQuerierReconnect{
+		p: e,
+	}
 }
 
 // Reset resets the state to a block for the given DB tx
