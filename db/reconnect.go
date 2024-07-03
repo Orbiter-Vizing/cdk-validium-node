@@ -35,7 +35,7 @@ func (e *ExecQuerierReconnect) Query(ctx context.Context, sql string, args ...in
 	for i := 0; i <= ReconnectCount; i++ {
 		rows, err = e.P.Query(ctx, sql, args...)
 		if err != nil {
-			log.Errorf("TestLog:sql Query error :%v", err.Error())
+			log.Infof("TestLog:sql Query error :%v", err.Error())
 		}
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			log.Errorf("sql Query EOF, reconnect...")
