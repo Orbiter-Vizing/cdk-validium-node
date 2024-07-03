@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"github.com/0xPolygonHermez/zkevm-node/log"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"io"
@@ -33,7 +34,11 @@ func (e *ExecQuerierReconnect) Exec(ctx context.Context, sql string, arguments .
 func (e *ExecQuerierReconnect) Query(ctx context.Context, sql string, args ...interface{}) (rows pgx.Rows, err error) {
 	for i := 0; i <= ReconnectCount; i++ {
 		rows, err = e.P.Query(ctx, sql, args...)
+		if err != nil {
+			log.Errorf("TestLog:sql Query error :%v", err)
+		}
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			log.Errorf("sql Query EOF, reconnect...")
 			continue
 		}
 		return
@@ -60,7 +65,11 @@ type queryRow struct {
 func (e *queryRow) Scan(dest ...interface{}) (err error) {
 	for i := 0; i <= ReconnectCount; i++ {
 		err = e.p.QueryRow(e.ctx, e.sql, e.args...).Scan(dest...)
+		if err != nil {
+			log.Errorf("TestLog:sql QueryRow error :%v", err)
+		}
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			log.Errorf("sql QueryRow EOF, and reconnect...")
 			continue
 		}
 		return
