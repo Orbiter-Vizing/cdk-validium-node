@@ -138,6 +138,7 @@ func (p *PostgresStorage) GetTxsOlderThanNL1Blocks(ctx context.Context, nL1Block
 	} else if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	hashes := make([]common.Hash, 0, len(rows.RawValues()))
 	for rows.Next() {
 		var hash string

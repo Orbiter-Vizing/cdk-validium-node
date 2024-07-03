@@ -294,7 +294,7 @@ func (p *PostgresPoolStorage) GetTxs(ctx context.Context, filterStatus pool.TxSt
 	} else if err != nil {
 		return nil, err
 	}
-
+	defer rows.Close()
 	txs := make([]*pool.Transaction, 0, len(rows.RawValues()))
 	for rows.Next() {
 		err := rows.Scan(
