@@ -27,7 +27,7 @@ func (p *PostgresPoolStorage) CheckPolicy(ctx context.Context, policy pool.Polic
 					AND a.address = $1 
 			WHERE p.name = $2`
 
-	rows, err := p.db.Query(ctx, sql, address.Hex(), policy)
+	rows, err := p.Db.Query(ctx, sql, address.Hex(), policy)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, pool.ErrNotFound
@@ -119,7 +119,7 @@ func (p *PostgresPoolStorage) ClearPolicy(ctx context.Context, policy pool.Polic
 // DescribePolicies return all the policies
 func (p *PostgresPoolStorage) DescribePolicies(ctx context.Context) ([]pool.Policy, error) {
 	sql := "SELECT name, allow FROM pool.policy"
-	rows, err := p.db.Query(ctx, sql)
+	rows, err := p.Db.Query(ctx, sql)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -151,7 +151,7 @@ func (p *PostgresPoolStorage) DescribePolicies(ctx context.Context) ([]pool.Poli
 // DescribePolicy returns the named policy
 func (p *PostgresPoolStorage) DescribePolicy(ctx context.Context, name pool.PolicyName) (pool.Policy, error) {
 	sql := "SELECT name, allow FROM pool.policy WHERE name = $1 LIMIT 1"
-	row := p.db.QueryRow(ctx, sql, name)
+	row := p.Db.QueryRow(ctx, sql, name)
 	var (
 		pName string
 		allow bool
@@ -179,7 +179,7 @@ func (p *PostgresPoolStorage) ListAcl(
 		sql = sql + fmt.Sprintf(" IN (%v)", strings.Join(addrs, ","))
 	}
 
-	rows, err := p.db.Query(ctx, sql, string(policy))
+	rows, err := p.Db.Query(ctx, sql, string(policy))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
