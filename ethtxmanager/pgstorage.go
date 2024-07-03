@@ -110,7 +110,7 @@ func (s *PostgresStorage) GetByStatus(ctx context.Context, owner *string, status
 	} else if err != nil {
 		return nil, err
 	}
-
+	defer rows.Close()
 	for rows.Next() {
 		mTx := monitoredTx{}
 		err := s.scanMtx(rows, &mTx)
@@ -158,7 +158,7 @@ func (s *PostgresStorage) GetByBlock(ctx context.Context, fromBlock, toBlock *ui
 	} else if err != nil {
 		return nil, err
 	}
-
+	defer rows.Close()
 	for rows.Next() {
 		mTx := monitoredTx{}
 		err := s.scanMtx(rows, &mTx)
@@ -272,7 +272,7 @@ type dbConn interface {
 // dbConn determines which db connection to use, dbTx or the main pgxpool
 func (p *PostgresStorage) dbConn(dbTx pgx.Tx) dbConn {
 	if dbTx != nil {
-		return dbTx
+		return db.GetExecQuerierReconnect(dbTx)
 	}
-	return p
+	return db.GetExecQuerierReconnect(p)
 }
