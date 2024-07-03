@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/0xPolygonHermez/zkevm-node/db"
 	"math/big"
 	"time"
 
@@ -41,15 +42,9 @@ func NewPostgresStorage(cfg Config, db *pgxpool.Pool) *PostgresStorage {
 // getExecQuerier determines which execQuerier to use, dbTx or the main pgxpool
 func (p *PostgresStorage) getExecQuerier(dbTx pgx.Tx) execQuerier {
 	if dbTx != nil {
-		return p.getExecQuerierReconnect(dbTx)
+		return db.GetExecQuerierReconnect(dbTx)
 	}
-	return p.getExecQuerierReconnect(p)
-}
-
-func (p *PostgresStorage) getExecQuerierReconnect(e execQuerier) ExecQuerierReconnect {
-	return ExecQuerierReconnect{
-		p: e,
-	}
+	return db.GetExecQuerierReconnect(p)
 }
 
 // Reset resets the state to a block for the given DB tx

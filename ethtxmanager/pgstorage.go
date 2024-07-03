@@ -272,7 +272,7 @@ type dbConn interface {
 // dbConn determines which db connection to use, dbTx or the main pgxpool
 func (p *PostgresStorage) dbConn(dbTx pgx.Tx) dbConn {
 	if dbTx != nil {
-		return dbTx
+		return db.GetExecQuerierReconnect(dbTx)
 	}
-	return p
+	return db.GetExecQuerierReconnect(p)
 }
