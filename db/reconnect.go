@@ -7,9 +7,11 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"io"
+	"time"
 )
 
 var ReconnectCount = 1
+var reSleepTime = 200 * time.Millisecond
 
 type Querier interface {
 	Exec(ctx context.Context, sql string, arguments ...interface{}) (commandTag pgconn.CommandTag, err error)
@@ -34,8 +36,9 @@ func (e *ExecQuerierReconnect) Exec(ctx context.Context, sql string, arguments .
 func (e *ExecQuerierReconnect) Query(ctx context.Context, sql string, args ...interface{}) (rows pgx.Rows, err error) {
 	for i := 0; i <= ReconnectCount; i++ {
 		rows, err = e.P.Query(ctx, sql, args...)
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			log.Errorf("sql Query EOF, reconnect...")
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || err.Error() == "conn closed" {
+			log.Errorf("sql Query err :%s, reconnect...", err.Error())
+			time.Sleep(reSleepTime)
 			continue
 		}
 		return
@@ -62,11 +65,9 @@ type queryRow struct {
 func (e *queryRow) Scan(dest ...interface{}) (err error) {
 	for i := 0; i <= ReconnectCount; i++ {
 		err = e.p.QueryRow(e.ctx, e.sql, e.args...).Scan(dest...)
-		if err != nil {
-			log.Infof("TestLog:sql QueryRow error :%v", err.Error())
-		}
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			log.Errorf("sql QueryRow EOF, and reconnect...")
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || err.Error() == "conn closed" {
+			log.Errorf("sql QueryRow err :%s, reconnect...", err.Error())
+			time.Sleep(reSleepTime)
 			continue
 		}
 		return
