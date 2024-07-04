@@ -2,7 +2,9 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/0xPolygonHermez/zkevm-node/log"
@@ -46,13 +48,10 @@ func NewSQLDB(cfg Config) (*pgxpool.Pool, error) {
 	//Before quire to do
 	//Ping is required before querying to prevent EOF errors
 	config.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
-		for i := 0; i < rePingCount; i++ {
-			if err := conn.Ping(ctx); err != nil {
-				log.Errorf("BeforeAcquire ping err: %s \n", err.Error())
-				time.Sleep(rePingSleepTime)
-				continue
-			}
-			break
+		err := conn.Ping(ctx)
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			log.Errorf("sql Ping EOF, reconnect...")
+			return false
 		}
 		return true
 	}
