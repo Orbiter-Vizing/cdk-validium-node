@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/0xPolygonHermez/zkevm-node/log"
 	"github.com/gobuffalo/packr/v2"
@@ -18,7 +19,8 @@ const (
 	// PoolMigrationName is the name of the migration used by packr to pack the migration file
 	PoolMigrationName = "zkevm-pool-db"
 
-	rePingCount = 3
+	rePingCount     = 3
+	rePingSleepTime = 300 * time.Millisecond
 )
 
 var packrMigrations = map[string]*packr.Box{
@@ -47,6 +49,7 @@ func NewSQLDB(cfg Config) (*pgxpool.Pool, error) {
 		for i := 0; i < rePingCount; i++ {
 			if err := conn.Ping(ctx); err != nil {
 				log.Errorf("BeforeAcquire ping err: %s \n", err.Error())
+				time.Sleep(rePingSleepTime)
 				continue
 			}
 			break
