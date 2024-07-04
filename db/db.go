@@ -17,6 +17,8 @@ const (
 	StateMigrationName = "zkevm-state-db"
 	// PoolMigrationName is the name of the migration used by packr to pack the migration file
 	PoolMigrationName = "zkevm-pool-db"
+
+	rePingCount = 3
 )
 
 var packrMigrations = map[string]*packr.Box{
@@ -39,15 +41,17 @@ func NewSQLDB(cfg Config) (*pgxpool.Pool, error) {
 		config.ConnConfig.Logger = logger{log: l, slowTime: cfg.LogSlowTime}
 	}
 
-	// Before quire to do
-	// Ping is required before querying to prevent EOF errors
-	//config.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
-	//	if err := conn.Ping(ctx); err != nil {
-	//		log.Errorf("BeforeAcquire ping err: %v\n", err)
-	//		return false
-	//	}
-	//	return true
-	//}
+	//Before quire to do
+	//Ping is required before querying to prevent EOF errors
+	config.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		for i := 0; i < rePingCount; i++ {
+			if err := conn.Ping(ctx); err != nil {
+				log.Errorf("BeforeAcquire ping err: %s \n", err.Error())
+				continue
+			}
+		}
+		return true
+	}
 
 	conn, err := pgxpool.ConnectConfig(context.Background(), config)
 	if err != nil {
