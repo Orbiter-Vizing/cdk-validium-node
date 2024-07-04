@@ -49,6 +49,7 @@ func NewSQLDB(cfg Config) (*pgxpool.Pool, error) {
 				log.Errorf("BeforeAcquire ping err: %s \n", err.Error())
 				continue
 			}
+			break
 		}
 		return true
 	}
