@@ -68,10 +68,10 @@ type finalizer struct {
 	// Processed txs
 	pendingTransactionsToStore   chan transactionToStore
 	pendingTransactionsToStoreWG *sync.WaitGroup
-	storedFlushID                uint64
+	storedFlushID                map[string]uint64
 	storedFlushIDCond            *sync.Cond //Condition to wait until storedFlushID has been updated
 	proverID                     string
-	lastPendingFlushID           uint64
+	lastPendingFlushID           map[string]uint64
 	pendingFlushIDCond           *sync.Cond
 	streamServer                 *datastreamer.StreamServer
 }
@@ -86,6 +86,7 @@ type transactionToStore struct {
 	coinbase      common.Address
 	oldStateRoot  common.Hash
 	isForcedBatch bool
+	proverID      string
 	flushId       uint64
 	egpLog        *state.EffectiveGasPriceLog
 }
@@ -152,11 +153,11 @@ func newFinalizer(
 		effectiveGasPrice:            pool.NewEffectiveGasPrice(poolCfg.EffectiveGasPrice, poolCfg.DefaultMinGasPriceAllowed),
 		pendingTransactionsToStore:   make(chan transactionToStore, batchConstraints.MaxTxsPerBatch*pendingTxsBufferSizeMultiplier),
 		pendingTransactionsToStoreWG: new(sync.WaitGroup),
-		storedFlushID:                0,
+		storedFlushID:                map[string]uint64{},
 		// Mutex is unlocked when the condition is broadcasted
 		storedFlushIDCond:  sync.NewCond(&sync.Mutex{}),
 		proverID:           "",
-		lastPendingFlushID: 0,
+		lastPendingFlushID: map[string]uint64{},
 		pendingFlushIDCond: sync.NewCond(&sync.Mutex{}),
 		streamServer:       streamServer,
 	}
@@ -209,7 +210,7 @@ func (f *finalizer) storePendingTransactions(ctx context.Context) {
 
 			// Wait until f.storedFlushID >= tx.flushId
 			f.storedFlushIDCond.L.Lock()
-			for f.storedFlushID < tx.flushId {
+			for f.storedFlushID[tx.proverID] < tx.flushId {
 				f.storedFlushIDCond.Wait()
 				// check if context is done after waking up
 				if ctx.Err() != nil {
@@ -238,21 +239,56 @@ func (f *finalizer) storePendingTransactions(ctx context.Context) {
 
 // updateProverIdAndFlushId updates the prover id and flush id
 func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
+	isWait := true
 	for {
 		f.pendingFlushIDCond.L.Lock()
 		// f.storedFlushID is >= than f.lastPendingFlushID, this means all pending txs (flushid) are stored by the executor.
 		// We are "synced" with the flush id, therefore we need to wait for new tx (new pending flush id to be stored by the executor)
-		for f.storedFlushID >= f.lastPendingFlushID {
+		//for f.storedFlushID >= f.lastPendingFlushID {
+		//	f.pendingFlushIDCond.Wait()
+		//}
+		for k, v := range f.lastPendingFlushID {
+			finalStoredFlushID := f.storedFlushID[k]
+			if v <= finalStoredFlushID {
+				continue
+			}
+			isWait = false
+			for {
+				storedFlushID, proverID, err := f.dbManager.GetStoredFlushID(ctx)
+				if err != nil {
+					log.Errorf("failed to get stored flush id, Err: %v", err)
+					time.Sleep(time.Second * 3)
+				} else if k == proverID && storedFlushID != finalStoredFlushID {
+					log.Infof("update finalizer storedFlushID，proverID(%s) oldStoredFlushID(%d) newStoredFlushID(%d)",
+						proverID, finalStoredFlushID, storedFlushID)
+					// Check if prover/Executor has been restarted
+					f.checkIfProverRestarted(proverID)
+
+					// Update f.storeFlushID and signal condition f.storedFlushIDCond
+					f.storedFlushIDCond.L.Lock()
+					f.storedFlushID[k] = storedFlushID
+					f.storedFlushIDCond.Broadcast()
+					f.storedFlushIDCond.L.Unlock()
+					break
+				} else {
+					log.Infof("executor(%s) not eq f.proverID(%s)，retry GetStoredFlushID", proverID, k)
+					time.Sleep(time.Second)
+				}
+			}
+		}
+		if isWait {
 			f.pendingFlushIDCond.Wait()
 		}
 		f.pendingFlushIDCond.L.Unlock()
 
-		for f.storedFlushID < f.lastPendingFlushID {
+		/*for f.storedFlushID < f.lastPendingFlushID {
 			storedFlushID, proverID, err := f.dbManager.GetStoredFlushID(ctx)
 			if err != nil {
 				log.Errorf("failed to get stored flush id, Err: %v", err)
 			} else {
 				if storedFlushID != f.storedFlushID {
+					log.Infof("executor(%s) storedFlushID(%d) not eq f.proverID(%s) f.storedFlushID(%d)",
+						proverID, storedFlushID, f.proverID, f.storedFlushID)
 					// Check if prover/Executor has been restarted
 					f.checkIfProverRestarted(proverID)
 
@@ -263,7 +299,7 @@ func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
 					f.storedFlushIDCond.L.Unlock()
 				}
 			}
-		}
+		}*/
 	}
 }
 
@@ -305,11 +341,13 @@ func (f *finalizer) listenForClosingSignals(ctx context.Context) {
 
 // updateLastPendingFLushID updates f.lastPendingFLushID with newFlushID value (it it has changed) and sends
 // the signal condition f.pendingFlushIDCond to notify other go funcs that the f.lastPendingFlushID value has changed
-func (f *finalizer) updateLastPendingFlushID(newFlushID uint64) {
-	if newFlushID > f.lastPendingFlushID {
-		f.lastPendingFlushID = newFlushID
+func (f *finalizer) updateLastPendingFlushID(proverID string, newFlushID uint64) {
+	f.pendingFlushIDCond.L.Lock()
+	if newFlushID > f.lastPendingFlushID[proverID] {
+		f.lastPendingFlushID[proverID] = newFlushID
 		f.pendingFlushIDCond.Broadcast()
 	}
+	f.pendingFlushIDCond.L.Unlock()
 }
 
 // addPendingTxToStore adds a pending tx that is ready to be stored in the state DB once its flushid has been stored by the executor
@@ -859,11 +897,14 @@ func (f *finalizer) handleProcessTransactionResponse(ctx context.Context, tx *Tx
 		coinbase:      f.batch.coinbase,
 		oldStateRoot:  oldStateRoot,
 		isForcedBatch: false,
+		proverID:      result.ProverID,
 		flushId:       result.FlushID,
 		egpLog:        &tx.EGPLog,
 	}
 
-	f.updateLastPendingFlushID(result.FlushID)
+	log.Infof("[handleProcessTransactionResponse] executor(%s) flushID(%d) storedFlushID(%d)", result.ProverID, result.FlushID, result.StoredFlushID)
+
+	f.updateLastPendingFlushID(result.ProverID, result.FlushID)
 
 	f.addPendingTxToStore(ctx, txToStore)
 
@@ -904,12 +945,13 @@ func (f *finalizer) handleForcedTxsProcessResp(ctx context.Context, request stat
 			coinbase:      request.Coinbase,
 			oldStateRoot:  oldStateRoot,
 			isForcedBatch: true,
+			proverID:      result.ProverID,
 			flushId:       result.FlushID,
 		}
 
 		oldStateRoot = txResp.StateRoot
 
-		f.updateLastPendingFlushID(result.FlushID)
+		f.updateLastPendingFlushID(result.ProverID, result.FlushID)
 
 		f.addPendingTxToStore(ctx, txToStore)
 
