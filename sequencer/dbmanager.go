@@ -713,8 +713,8 @@ func (d *dbManager) GetL1AndL2GasPrice() (uint64, uint64) {
 }
 
 // GetStoredFlushID returns the stored flush ID and prover ID
-func (d *dbManager) GetStoredFlushID(ctx context.Context) (uint64, string, error) {
-	return d.state.GetStoredFlushID(ctx)
+func (d *dbManager) GetStoredFlushID(ctx context.Context, targetServer string) (uint64, string, error) {
+	return d.state.GetStoredFlushID(ctx, targetServer)
 }
 
 // GetForcedBatch gets a forced batch by number
@@ -726,7 +726,6 @@ func (d *dbManager) GetForcedBatch(ctx context.Context, forcedBatchNumber uint64
 func (d *dbManager) GetForkIDByBatchNumber(batchNumber uint64) uint64 {
 	return d.state.GetForkIDByBatchNumber(batchNumber)
 }
-
 
 // GetReorgedTransactions returns the transactions that were reorged
 func (d *dbManager) GetReorgedTransactions(ctx context.Context, batchNumber uint64, dbTx pgx.Tx) ([]*types.Transaction, error) {

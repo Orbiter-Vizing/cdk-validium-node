@@ -11,8 +11,8 @@ import (
 	"github.com/0xPolygonHermez/zkevm-node/state/runtime/executor"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/jackc/pgx/v4"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/jackc/pgx/v4"
 )
 
 // Consumer interfaces required by the package.
@@ -79,7 +79,7 @@ type stateInterface interface {
 	CountReorgs(ctx context.Context, dbTx pgx.Tx) (uint64, error)
 	GetLatestGer(ctx context.Context, maxBlockNumber uint64) (state.GlobalExitRoot, time.Time, error)
 	FlushMerkleTree(ctx context.Context) error
-	GetStoredFlushID(ctx context.Context) (uint64, string, error)
+	GetStoredFlushID(ctx context.Context, targetServer string) (uint64, string, error)
 	GetForkIDByBatchNumber(batchNumber uint64) uint64
 	GetDSGenesisBlock(ctx context.Context, dbTx pgx.Tx) (*state.DSL2Block, error)
 	GetDSBatches(ctx context.Context, firstBatchNumber, lastBatchNumber uint64, readWIPBatch bool, dbTx pgx.Tx) ([]*state.DSBatch, error)
@@ -134,7 +134,7 @@ type dbManagerInterface interface {
 	GetGasPrices(ctx context.Context) (pool.GasPrices, error)
 	GetDefaultMinGasPriceAllowed() uint64
 	GetL1AndL2GasPrice() (uint64, uint64)
-	GetStoredFlushID(ctx context.Context) (uint64, string, error)
+	GetStoredFlushID(ctx context.Context, targetServer string) (uint64, string, error)
 	StoreProcessedTxAndDeleteFromPool(ctx context.Context, tx transactionToStore) error
 	GetForcedBatch(ctx context.Context, forcedBatchNumber uint64, dbTx pgx.Tx) (*state.ForcedBatch, error)
 	GetForkIDByBatchNumber(batchNumber uint64) uint64

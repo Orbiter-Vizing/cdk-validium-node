@@ -2,6 +2,8 @@ package state
 
 import (
 	"context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"math/big"
 	"sync"
 
@@ -143,11 +145,13 @@ func (s *State) FlushMerkleTree(ctx context.Context) error {
 }
 
 // GetStoredFlushID returns the stored flush ID and Prover ID
-func (s *State) GetStoredFlushID(ctx context.Context) (uint64, string, error) {
+func (s *State) GetStoredFlushID(ctx context.Context, targetServer string) (uint64, string, error) {
 	if s.executorClient == nil {
 		return 0, "", ErrExecutorNil
 	}
-	res, err := s.executorClient.GetFlushStatus(ctx, &emptypb.Empty{})
+
+	md := metadata.Pairs("target_server", targetServer)
+	res, err := s.executorClient.GetFlushStatus(ctx, &emptypb.Empty{}, grpc.Header(&md))
 	if err != nil {
 		return 0, "", err
 	}
