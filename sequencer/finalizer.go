@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -254,16 +253,8 @@ func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
 				continue
 			}
 			isWait = false
-			targetServer := 0
 			for {
-				if targetServer > 60 {
-					f.storedFlushIDCond.L.Lock()
-					f.storedFlushID[k] = v
-					f.storedFlushIDCond.Broadcast()
-					f.storedFlushIDCond.L.Unlock()
-					break
-				}
-				storedFlushID, proverID, err := f.dbManager.GetStoredFlushID(ctx, strconv.Itoa(targetServer))
+				storedFlushID, proverID, err := f.dbManager.GetStoredFlushID(ctx)
 				if err != nil {
 					log.Errorf("failed to get stored flush id, Err: %v", err)
 					time.Sleep(time.Second * 3)
@@ -280,9 +271,9 @@ func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
 					f.storedFlushIDCond.L.Unlock()
 					break
 				} else {
-					targetServer++
-					log.Infof("executor(%s) not eq f.proverID(%s)，retry GetStoredFlushID", proverID, k)
-					time.Sleep(time.Second)
+					log.Infof("retry GetStoredFlushID，executor vs local，proverID(%s / %s), storedFlushID(%d / %d)",
+						proverID, k, storedFlushID, finalStoredFlushID)
+					time.Sleep(time.Millisecond * 300)
 				}
 			}
 		}

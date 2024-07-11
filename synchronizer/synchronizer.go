@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/0xPolygon/cdk-data-availability/client"
@@ -42,20 +43,20 @@ type Synchronizer interface {
 type ClientSynchronizer struct {
 	isTrustedSequencer bool
 	etherMan           EthermanInterface
-	latestFlushID      uint64
+	latestFlushID      sync.Map
 	// If true the lastFlushID is stored in DB and we don't need to check again
-	latestFlushIDIsFulfilled bool
-	etherManForL1            []EthermanInterface
-	state                    stateInterface
-	pool                     poolInterface
-	ethTxManager             ethTxManager
-	zkEVMClient              zkEVMClientInterface
-	eventLog                 *event.EventLog
-	ctx                      context.Context
-	cancelCtx                context.CancelFunc
-	genesis                  state.Genesis
-	cfg                      Config
-	trustedState             struct {
+	//latestFlushIDIsFulfilled bool
+	etherManForL1 []EthermanInterface
+	state         stateInterface
+	pool          poolInterface
+	ethTxManager  ethTxManager
+	zkEVMClient   zkEVMClientInterface
+	eventLog      *event.EventLog
+	ctx           context.Context
+	cancelCtx     context.CancelFunc
+	genesis       state.Genesis
+	cfg           Config
+	trustedState  struct {
 		lastTrustedBatches []*state.Batch
 		lastStateRoot      *common.Hash
 	}
@@ -65,11 +66,18 @@ type ClientSynchronizer struct {
 	// later the value is checked to be the same (in function checkFlushID)
 	proverID string
 	// Previous value returned by state.GetStoredFlushID, is used for decide if write a log or not
-	previousExecutorFlushID    uint64
+	//previousExecutorFlushID    uint64
 	l1SyncOrchestration        *l1SyncOrchestration
 	committeeMembers           []etherman.DataCommitteeMember
 	selectedCommitteeMember    int
 	dataCommitteeClientFactory client.ClientFactoryInterface
+}
+
+type FlushData struct {
+	FlushID                  uint64
+	ProverID                 string
+	PreviousExecutorFlushID  uint64
+	LatestFlushIDIsFulfilled bool
 }
 
 // NewSynchronizer creates and initializes an instance of Synchronizer
@@ -91,20 +99,21 @@ func NewSynchronizer(
 	metrics.Register()
 
 	res := &ClientSynchronizer{
-		isTrustedSequencer:         isTrustedSequencer,
-		state:                      st,
-		etherMan:                   ethMan,
-		etherManForL1:              etherManForL1,
-		pool:                       pool,
-		ctx:                        ctx,
-		cancelCtx:                  cancel,
-		ethTxManager:               ethTxManager,
-		zkEVMClient:                zkEVMClient,
-		eventLog:                   eventLog,
-		genesis:                    genesis,
-		cfg:                        cfg,
-		proverID:                   "",
-		previousExecutorFlushID:    0,
+		isTrustedSequencer: isTrustedSequencer,
+		state:              st,
+		etherMan:           ethMan,
+		etherManForL1:      etherManForL1,
+		pool:               pool,
+		ctx:                ctx,
+		cancelCtx:          cancel,
+		ethTxManager:       ethTxManager,
+		zkEVMClient:        zkEVMClient,
+		eventLog:           eventLog,
+		genesis:            genesis,
+		cfg:                cfg,
+		proverID:           "",
+		latestFlushID:      sync.Map{},
+		//previousExecutorFlushID:    0,
 		l1SyncOrchestration:        nil,
 		dataCommitteeClientFactory: clientFactory,
 	}
@@ -1739,12 +1748,27 @@ func (s *ClientSynchronizer) pendingFlushID(flushID uint64, proverID string) {
 	if flushID == 0 {
 		log.Fatal("flushID is 0. Please check that prover/executor config parameter dbReadOnly is false")
 	}
-	s.latestFlushID = flushID
-	s.latestFlushIDIsFulfilled = false
+	//s.latestFlushID = flushID
+	//s.latestFlushIDIsFulfilled = false
+	if d, ok := s.latestFlushID.Load(proverID); ok {
+		if fd, ok := d.(*FlushData); ok {
+			fd.FlushID = flushID
+			fd.LatestFlushIDIsFulfilled = false
+		} else {
+			log.Errorf("[pendingFlushID] flushData not FlushData Object, flushData: %+v", d)
+		}
+	} else {
+		s.latestFlushID.Store(proverID, &FlushData{
+			ProverID:                 proverID,
+			FlushID:                  flushID,
+			LatestFlushIDIsFulfilled: false,
+		})
+	}
 	s.updateAndCheckProverID(proverID)
 }
 
 func (s *ClientSynchronizer) updateAndCheckProverID(proverID string) {
+	return
 	if s.proverID == "" {
 		log.Infof("Current proverID is %s", proverID)
 		s.proverID = proverID
@@ -1770,11 +1794,23 @@ func (s *ClientSynchronizer) updateAndCheckProverID(proverID string) {
 }
 
 func (s *ClientSynchronizer) checkFlushID(dbTx pgx.Tx) error {
-	if s.latestFlushIDIsFulfilled {
+	/*if s.latestFlushIDIsFulfilled {
 		log.Debugf("no pending flushID, nothing to do. Last pending fulfilled flushID: %d, last executor flushId received: %d", s.latestFlushID, s.latestFlushID)
 		return nil
+	}*/
+	latestFlushIDIsFulfilled, count := 0, 0
+	s.latestFlushID.Range(func(pID, value any) bool {
+		count++
+		if fd, ok := value.(*FlushData); ok && fd.LatestFlushIDIsFulfilled {
+			latestFlushIDIsFulfilled++
+		}
+		return true
+	})
+	if latestFlushIDIsFulfilled == count {
+		log.Debugf("no pending flushID, nothing to do.")
+		return nil
 	}
-	storedFlushID, proverID, err := s.state.GetStoredFlushID(s.ctx)
+	/*storedFlushID, proverID, err := s.state.GetStoredFlushID(s.ctx)
 	if err != nil {
 		log.Error("error getting stored flushID. Error: ", err)
 		return err
@@ -1807,7 +1843,40 @@ func (s *ClientSynchronizer) checkFlushID(dbTx pgx.Tx) error {
 	}
 	log.Infof("Pending Flushid fullfiled: %d, executor have write %d", s.latestFlushID, storedFlushID)
 	s.latestFlushIDIsFulfilled = true
-	s.previousExecutorFlushID = storedFlushID
+	s.previousExecutorFlushID = storedFlushID*/
+
+	rangeFunc := func(pID, value any) bool {
+		fd, ok := value.(*FlushData)
+		if !ok {
+			log.Error("[checkFlushID] fd not FlushData Object, fd: %+V", value)
+			return true
+		}
+		iteration := 0
+		for {
+			storedFlushID, proverID, err := s.state.GetStoredFlushID(s.ctx)
+			if err != nil {
+				log.Error("error getting stored flushID. Error: ", err)
+				time.Sleep(time.Second * 3)
+			} else if proverID == pID {
+				if storedFlushID < fd.FlushID {
+					log.Debugf("Waiting for the flushID to be stored. FlushID to be stored: %d. Latest flushID stored: %d iteration:%d", fd.FlushID, storedFlushID, iteration)
+					time.Sleep(time.Millisecond * 300)
+				} else {
+					log.Infof("Pending Flushid fullfiled: %d, executor have write %d", fd.FlushID, storedFlushID)
+					fd.LatestFlushIDIsFulfilled = true
+					fd.PreviousExecutorFlushID = storedFlushID
+					break
+				}
+			} else {
+				log.Infof("executor vs local: flushid=%d/%d, proverID=%s/%s, iteration:%d", storedFlushID, fd.FlushID, proverID, pID, iteration)
+				time.Sleep(time.Millisecond * 300)
+			}
+			iteration++
+		}
+		return true
+	}
+	s.latestFlushID.Range(rangeFunc)
+
 	return nil
 }
 

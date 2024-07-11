@@ -713,8 +713,8 @@ func (d *dbManager) GetL1AndL2GasPrice() (uint64, uint64) {
 }
 
 // GetStoredFlushID returns the stored flush ID and prover ID
-func (d *dbManager) GetStoredFlushID(ctx context.Context, targetServer string) (uint64, string, error) {
-	return d.state.GetStoredFlushID(ctx, targetServer)
+func (d *dbManager) GetStoredFlushID(ctx context.Context) (uint64, string, error) {
+	return d.state.GetStoredFlushID(ctx)
 }
 
 // GetForcedBatch gets a forced batch by number
