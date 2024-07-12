@@ -651,13 +651,6 @@ func (f *finalizer) reorgPool(ctx context.Context, batchNumber uint64) {
 	}
 	log.Debug("Delete reorged transactions")
 
-	err = f.executor.ResetTrustedState(ctx, batchNumber-1, dbTx)
-	if err != nil {
-		log.Errorf("error resetting trusted state. BatchNumber: %d, error: %v", batchNumber, err)
-		_ = dbTx.Rollback(ctx)
-		return
-	}
-
 	// Add txs to the pool
 	for _, tx := range txs {
 		// Insert tx in WIP status to avoid the sequencer to grab them before it gets restarted
@@ -671,6 +664,14 @@ func (f *finalizer) reorgPool(ctx context.Context, batchNumber uint64) {
 			log.Debug("Reorged transactions inserted in the pool: ", tx.Hash())
 		}
 	}
+
+	err = f.executor.ResetTrustedState(ctx, batchNumber-1, dbTx)
+	if err != nil {
+		log.Errorf("error resetting trusted state. BatchNumber: %d, error: %v", batchNumber, err)
+		_ = dbTx.Rollback(ctx)
+		return
+	}
+	_ = dbTx.Commit(ctx)
 
 	log.Fatal("sequencer exit......")
 }
