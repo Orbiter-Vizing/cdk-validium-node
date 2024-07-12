@@ -241,6 +241,7 @@ func (f *finalizer) storePendingTransactions(ctx context.Context) {
 func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
 	isWait := true
 	for {
+		isWait = true
 		f.pendingFlushIDCond.L.Lock()
 		// f.storedFlushID is >= than f.lastPendingFlushID, this means all pending txs (flushid) are stored by the executor.
 		// We are "synced" with the flush id, therefore we need to wait for new tx (new pending flush id to be stored by the executor)
