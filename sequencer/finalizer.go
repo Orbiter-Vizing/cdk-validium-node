@@ -272,6 +272,7 @@ func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
 					f.storedFlushIDCond.L.Unlock()
 					break
 				} else if k == proverID && storedFlushID == finalStoredFlushID {
+					log.Infof("executor == local，proverID(%s), storedFlushID(%d), pendingFlushID(%d)", k, storedFlushID, v)
 					time.Sleep(time.Millisecond * 200)
 					break
 				} else {
