@@ -259,9 +259,9 @@ func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
 				if err != nil {
 					log.Errorf("failed to get stored flush id, Err: %v", err)
 					time.Sleep(time.Second * 3)
-				} else if k == proverID && storedFlushID != finalStoredFlushID {
-					log.Infof("update finalizer storedFlushID，proverID(%s) oldStoredFlushID(%d) newStoredFlushID(%d)",
-						proverID, finalStoredFlushID, storedFlushID)
+				} else if k == proverID && storedFlushID >= finalStoredFlushID {
+					log.Infof("update finalizer storedFlushID，proverID(%s) oldStoredFlushID(%d) pendingFlushID(%d) newStoredFlushID(%d)",
+						proverID, finalStoredFlushID, v, storedFlushID)
 					// Check if prover/Executor has been restarted
 					f.checkIfProverRestarted(proverID)
 
@@ -272,8 +272,8 @@ func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
 					f.storedFlushIDCond.L.Unlock()
 					break
 				} else {
-					log.Infof("retry GetStoredFlushID，executor vs local，proverID(%s / %s), storedFlushID(%d / %d)",
-						proverID, k, storedFlushID, finalStoredFlushID)
+					log.Infof("retry GetStoredFlushID，executor vs local，proverID(%s / %s), storedFlushID(%d / %d), pendingFlushID(%d)",
+						proverID, k, storedFlushID, finalStoredFlushID, v)
 					time.Sleep(time.Millisecond * 200)
 				}
 			}
