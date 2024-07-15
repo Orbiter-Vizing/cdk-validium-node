@@ -277,7 +277,7 @@ func (f *finalizer) updateProverIdAndFlushId(ctx context.Context) {
 				} else {
 					log.Infof("retry GetStoredFlushID，executor vs local，proverID(%s / %s), storedFlushID(%d / %d), pendingFlushID(%d)",
 						proverID, k, storedFlushID, finalStoredFlushID, v)
-					time.Sleep(time.Millisecond * 200)
+					time.Sleep(time.Millisecond * 100)
 				}
 			}
 		}
