@@ -376,6 +376,7 @@ func (f *finalizer) addPendingTxToStore(ctx context.Context, txToStore transacti
 func (f *finalizer) finalizeBatches(ctx context.Context) {
 	log.Debug("finalizer init loop")
 	showNotFoundTxLog := true // used to log debug only the first message when there is no txs to process
+	emptyRound := 0
 	for {
 		start := now()
 		if f.batch.batchNumber == f.cfg.StopSequencerOnBatchNum {
@@ -385,6 +386,7 @@ func (f *finalizer) finalizeBatches(ctx context.Context) {
 		tx := f.worker.GetBestFittingTx(f.batch.remainingResources)
 		metrics.WorkerProcessingTime(time.Since(start))
 		if tx != nil {
+			emptyRound = 0
 			log.Debugf("current batchNum: %d，processing tx: %s", f.batch.batchNumber, tx.Hash.Hex())
 			showNotFoundTxLog = true
 
@@ -407,6 +409,9 @@ func (f *finalizer) finalizeBatches(ctx context.Context) {
 			}
 			f.sharedResourcesMux.Unlock()
 		} else {
+			if f.worker.GetTxSortedListLen() > 0 {
+				emptyRound++
+			}
 			// wait for new txs
 			if showNotFoundTxLog {
 				log.Debugf("current batchNum: %d, no transactions to be processed. Waiting...", f.batch.batchNumber)
@@ -418,16 +423,23 @@ func (f *finalizer) finalizeBatches(ctx context.Context) {
 		}
 
 		if !f.cfg.SequentialReprocessFullBatch && f.reprocessFullBatchError.Load() {
+			emptyRound = 0
 			// There is an error reprocessing previous batch closed (parallel sanity check)
 			// We halt the execution of the Sequencer at this point
 			f.halt(ctx, fmt.Errorf("halting Sequencer because of error reprocessing full batch (sanity check). Check previous errors in logs to know which was the cause"))
 		}
 
 		if f.isDeadlineEncountered() {
+			emptyRound = 0
 			log.Infof("closing batch %d because deadline was encountered.", f.batch.batchNumber)
 			f.finalizeBatch(ctx)
 		} else if f.isBatchFull() || f.isBatchAlmostFull() {
+			emptyRound = 0
 			log.Infof("closing batch %d because it's almost full.", f.batch.batchNumber)
+			f.finalizeBatch(ctx)
+		} else if f.isBatchInsufficientapacity(emptyRound) {
+			emptyRound = 0
+			log.Infof("closing batch %d because insufficient capacity.", f.batch.batchNumber)
 			f.finalizeBatch(ctx)
 		}
 
@@ -460,6 +472,16 @@ func (f *finalizer) isBatchFull() bool {
 	if f.batch.countOfTxs >= int(f.batchConstraints.MaxTxsPerBatch) {
 		log.Infof("Closing batch: %d, because it's full.", f.batch.batchNumber)
 		f.batch.closingReason = state.BatchFullClosingReason
+		return true
+	}
+	return false
+}
+
+// isBatchFull checks if the batch is full
+func (f *finalizer) isBatchInsufficientapacity(round int) bool {
+	if round > f.cfg.FittingTxEmptyRound && !f.batch.isEmpty() {
+		log.Infof("closing batch %d because insufficient capacity.", f.batch.batchNumber)
+		f.batch.closingReason = state.BatchInsufficientCapacityReason
 		return true
 	}
 	return false

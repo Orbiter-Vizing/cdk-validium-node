@@ -41,6 +41,10 @@ func (w *Worker) NewTxTracker(tx types.Transaction, counters state.ZKCounters, i
 	return newTxTracker(tx, counters, ip)
 }
 
+func (w *Worker) GetTxSortedListLen() int {
+	return w.txSortedList.len()
+}
+
 // AddTxTracker adds a new Tx to the Worker
 func (w *Worker) AddTxTracker(ctx context.Context, tx *TxTracker) (replacedTx *TxTracker, dropReason error) {
 	w.workerMutex.Lock()

@@ -90,6 +90,7 @@ type stateInterface interface {
 }
 
 type workerInterface interface {
+	GetTxSortedListLen() int
 	GetBestFittingTx(resources state.BatchResources) *TxTracker
 	UpdateAfterSingleSuccessfulTxExecution(from common.Address, touchedAddresses map[common.Address]*state.InfoReadWrite) []*TxTracker
 	UpdateTxZKCounters(txHash common.Hash, from common.Address, ZKCounters state.ZKCounters)
