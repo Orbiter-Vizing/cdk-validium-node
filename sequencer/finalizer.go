@@ -442,6 +442,9 @@ func (f *finalizer) finalizeBatches(ctx context.Context) {
 			log.Infof("closing batch %d because insufficient capacity.", f.batch.batchNumber)
 			f.finalizeBatch(ctx)
 		}
+		if f.cfg.FittingTxEmptyRound < 1 {
+			emptyRound = 0
+		}
 
 		if err := ctx.Err(); err != nil {
 			log.Infof("stopping finalizer because of context, err: %s", err)
@@ -479,7 +482,7 @@ func (f *finalizer) isBatchFull() bool {
 
 // isBatchFull checks if the batch is full
 func (f *finalizer) isBatchInsufficientapacity(round int) bool {
-	if round > f.cfg.FittingTxEmptyRound && !f.batch.isEmpty() {
+	if f.cfg.FittingTxEmptyRound > 0 && round > f.cfg.FittingTxEmptyRound && !f.batch.isEmpty() {
 		log.Infof("closing batch %d because insufficient capacity.", f.batch.batchNumber)
 		f.batch.closingReason = state.BatchInsufficientCapacityReason
 		return true
