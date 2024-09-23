@@ -1141,7 +1141,7 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 		}
 		gasUsed = processBatchResponse.Responses[0].GasUsed
 		gasRefunded = processBatchResponse.Responses[0].GasRefunded
-		log.Debugf("%s,  Response Tx Use Gas: %d", ctxID, gasUsed)
+		log.Debugf("%s,  Response Tx GasUse: %d, GasRefunded: %d", ctxID, gasUsed, gasRefunded)
 
 		// Check if an out of gas error happened during EVM execution
 		if processBatchResponse.Responses[0].Error != executor.RomError_ROM_ERROR_NO_ERROR {
