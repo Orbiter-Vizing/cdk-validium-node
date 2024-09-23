@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/0xPolygonHermez/zkevm-node/encoding"
@@ -35,6 +36,13 @@ import (
 const (
 	two uint = 2
 )
+
+var gasIncInterval = map[int]uint64{
+	8: 100000,
+	7: 100000,
+	6: 50000,
+	5: 10000,
+}
 
 // GetSender gets the sender from the transaction's signature
 func GetSender(tx types.Transaction) (common.Address, error) {
@@ -1189,18 +1197,17 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 	if lowEnd < gasUsed {
 		lowEnd = gasUsed
 	}
+	gasInc := gasIncInterval[len(strconv.FormatUint(gasUsed, 10))]
 
 	// Start the binary search for the lowest possible gas price
 	for (lowEnd < highEnd) && (highEnd-lowEnd) > 4096 {
-		txExecutionStart := time.Now()
 		mid := (lowEnd + highEnd) / uint64(two)
-		optimisticEnd := lowEnd * 64 / 44
-		if mid > optimisticEnd {
-			mid = optimisticEnd
+		if ((mid-lowEnd) > gasInc) && gasInc > 0 {
+			mid = lowEnd + gasInc
 		}
 
 		log.Debugf("%s, Estimate gas. Trying to execute TX with %v gas", ctxID, mid)
-
+		txExecutionStart := time.Now()
 		failed, reverted, _, _, _, testErr := testTransaction(mid, nonce, true)
 		executionTime := time.Since(txExecutionStart)
 		totalExecutionTime += executionTime
