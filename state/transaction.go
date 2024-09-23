@@ -1172,7 +1172,7 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 
 	log.Debugf("%s, Estimate gas. Trying to execute TX with %v gas", ctxID, highEnd)
 	// Check if the highEnd is a good value to make the transaction pass
-	failed, reverted, gasUsed, gasRefunded, returnValue, err := testTransaction(highEnd, nonce, false)
+	failed, reverted, gasUsed, _, returnValue, err := testTransaction(highEnd, nonce, false)
 	if failed {
 		if reverted {
 			return 0, returnValue, err
@@ -1190,28 +1190,13 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 		lowEnd = gasUsed
 	}
 
-	if gasRefunded > 0 {
-		optimisticGasLimit := (gasUsed + gasRefunded + params.CallStipend) * 64 / 63
-		if optimisticGasLimit < highEnd {
-			failed, reverted, _, _, _, err = testTransaction(optimisticGasLimit, nonce, true)
-			if err != nil {
-				log.Errorf("%s, Execution error in estimate gas, err: %v", ctxID, err)
-				return 0, nil, err
-			}
-			if failed {
-				lowEnd = optimisticGasLimit
-			} else {
-				highEnd = optimisticGasLimit
-			}
-		}
-	}
-
 	// Start the binary search for the lowest possible gas price
 	for (lowEnd < highEnd) && (highEnd-lowEnd) > 4096 {
 		txExecutionStart := time.Now()
 		mid := (lowEnd + highEnd) / uint64(two)
-		if mid > lowEnd*2 {
-			mid = lowEnd * 2
+		optimisticEnd := lowEnd * 64 / 44
+		if mid > optimisticEnd {
+			mid = optimisticEnd
 		}
 
 		log.Debugf("%s, Estimate gas. Trying to execute TX with %v gas", ctxID, mid)
