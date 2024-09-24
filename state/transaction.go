@@ -1273,7 +1273,7 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 	}
 
 	if txExecTotal > 0 {
-		log.Infof("%s, EstimateGas executed TX %v %d times in %d milliseconds", ctxID, transaction.Hash(), txExecTotal, totalExecutionTime)
+		log.Infof("%s, EstimateGas executed TX %v %d times in %d milliseconds, final estimateGas: %d", ctxID, transaction.Hash(), txExecTotal, totalExecutionTime, highEnd)
 	} else {
 		log.Errorf("%s, Estimate gas. Tx not executed", ctxID)
 	}
