@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/big"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/0xPolygonHermez/zkevm-node/encoding"
@@ -38,10 +39,17 @@ const (
 )
 
 var gasIncInterval = map[int]uint64{
-	8: 50000,
-	7: 50000,
-	6: 30000,
-	5: 10000,
+	8: 100000,
+	7: 80000,
+	6: 50000,
+	5: 20000,
+}
+
+var gasSplitInterval = map[int]uint64{
+	8: 7,
+	7: 6,
+	6: 5,
+	5: 4,
 }
 
 // GetSender gets the sender from the transaction's signature
@@ -1088,7 +1096,7 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 
 	// Run the transaction with the specified gas value.
 	// Returns a status indicating if the transaction failed, if it was reverted and the accompanying error
-	testTransaction := func(gas uint64, nonce uint64, shouldOmitErr bool) (failed, reverted bool, gasUsed, gasRefunded uint64, returnValue []byte, err error) {
+	testTransaction := func(gas uint64, nonce uint64, shouldOmitErr bool) (failed, reverted bool, gasUsed uint64, executorTime int64, returnValue []byte, err error) {
 		tx := types.NewTx(&types.LegacyTx{
 			Nonce:    nonce,
 			To:       transaction.To(),
@@ -1137,7 +1145,8 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 
 		txExecutionOnExecutorTime := time.Now()
 		processBatchResponse, err := s.executorClient.ProcessBatch(ctx, processBatchRequest)
-		log.Debugf("%s, contextId: %s, executor time: %vms", ctxID, processBatchRequest.ContextId, time.Since(txExecutionOnExecutorTime).Milliseconds())
+		executorTime = time.Since(txExecutionOnExecutorTime).Milliseconds()
+		log.Debugf("%s, contextId: %s, executor time: %vms", ctxID, processBatchRequest.ContextId, executorTime)
 		if err != nil {
 			log.Errorf("%s, contextId: %s, error estimating gas: %v", ctxID, processBatchRequest.ContextId, err)
 			return false, false, gasUsed, 0, nil, err
@@ -1148,7 +1157,7 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 			return false, false, gasUsed, 0, nil, err
 		}
 		gasUsed = processBatchResponse.Responses[0].GasUsed
-		gasRefunded = processBatchResponse.Responses[0].GasRefunded
+		gasRefunded := processBatchResponse.Responses[0].GasRefunded
 		log.Debugf("%s,  Response Tx GasUse: %d, GasRefunded: %d", ctxID, gasUsed, gasRefunded)
 
 		// Check if an out of gas error happened during EVM execution
@@ -1159,28 +1168,27 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 				// Specifying the transaction failed, but not providing an error
 				// is an indication that a valid error occurred due to low gas,
 				// which will increase the lower bound for the search
-				return true, false, gasUsed, gasRefunded, nil, nil
+				return true, false, gasUsed, executorTime, nil, nil
 			}
 
 			if isEVMRevertError(err) {
 				// The EVM reverted during execution, attempt to extract the
 				// error message and return it
 				returnValue := processBatchResponse.Responses[0].ReturnValue
-				return true, true, gasUsed, gasRefunded, returnValue, constructErrorFromRevert(err, returnValue)
+				return true, true, gasUsed, executorTime, returnValue, constructErrorFromRevert(err, returnValue)
 			}
 
-			return true, false, gasUsed, gasRefunded, nil, err
+			return true, false, gasUsed, executorTime, nil, err
 		}
 
-		return false, false, gasUsed, gasRefunded, nil, nil
+		return false, false, gasUsed, executorTime, nil, nil
 	}
 
-	txExecutions := []time.Duration{}
-	var totalExecutionTime time.Duration
+	var totalExecutionTime, txExecTotal int64
 
 	log.Debugf("%s, Estimate gas. Trying to execute TX with %v gas", ctxID, highEnd)
 	// Check if the highEnd is a good value to make the transaction pass
-	failed, reverted, gasUsed, _, returnValue, err := testTransaction(highEnd, nonce, false)
+	failed, reverted, gasUsed, executorTime, returnValue, err := testTransaction(highEnd, nonce, false)
 	if failed {
 		if reverted {
 			return 0, returnValue, err
@@ -1197,39 +1205,75 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 	if lowEnd < gasUsed {
 		lowEnd = gasUsed
 	}
-	gasInc := gasIncInterval[len(strconv.FormatUint(gasUsed, 10))]
+	if highEnd > (lowEnd*4) {
+		highEnd = lowEnd*4
+	}
+	gasValLen := len(strconv.FormatUint(gasUsed, 10))
+	gasInc := gasIncInterval[gasValLen]
+	gasSplit := gasSplitInterval[gasValLen]
 
-	// Start the binary search for the lowest possible gas price
-	for (lowEnd < highEnd) && (highEnd-lowEnd) > 4096 {
-		mid := (lowEnd + highEnd) / uint64(two)
-		if ((mid-lowEnd) > gasInc) && gasInc > 0 {
-			mid = lowEnd + gasInc
+	if executorTime > 150 && gasSplit > 0 && (highEnd-lowEnd) >= gasInc {
+		offset := gasInc / gasSplit
+		wg := sync.WaitGroup{}
+		var i uint64
+		res := sync.Map{}
+		start := time.Now()
+		for i = 1; i <= gasSplit; i++ {
+			wg.Add(1)
+			go func(j uint64) {
+				defer wg.Done()
+				maxGas := lowEnd + (offset * j)
+				log.Debugf("%s, Estimate gas. Trying to concurrent execute TX with %v gas", ctxID, maxGas)
+				failed, reverted, _, _, _, testErr := testTransaction(maxGas, nonce, true)
+				if testErr != nil || failed || reverted {
+					res.Store(maxGas, false)
+				} else {
+					res.Store(maxGas, true)
+				}
+			}(i)
 		}
+		wg.Wait()
+		totalExecutionTime = time.Since(start).Milliseconds()
+		txExecTotal = int64(gasSplit)
+		res.Range(func(key, value any) bool {
+			if b, ok := value.(bool); ok && b {
+				tempGas, _ := key.(uint64)
+				if tempGas < highEnd {
+					highEnd = tempGas
+				}
+			}
+			return true
+		})
+	} else {
+		// Start the binary search for the lowest possible gas price
+		for (lowEnd < highEnd) && (highEnd-lowEnd) > 4096 {
+			mid := (lowEnd + highEnd) / uint64(two)
+			if ((mid-lowEnd) > gasInc) && gasInc > 0 {
+				mid = lowEnd + gasInc
+			}
 
-		log.Debugf("%s, Estimate gas. Trying to execute TX with %v gas", ctxID, mid)
-		txExecutionStart := time.Now()
-		failed, reverted, _, _, _, testErr := testTransaction(mid, nonce, true)
-		executionTime := time.Since(txExecutionStart)
-		totalExecutionTime += executionTime
-		txExecutions = append(txExecutions, executionTime)
-		if testErr != nil && !reverted {
-			// Reverts are ignored in the binary search, but are checked later on
-			// during the execution for the optimal gas limit found
-			return 0, nil, testErr
-		}
+			log.Debugf("%s, Estimate gas. Trying to execute TX with %v gas", ctxID, mid)
+			failed, reverted, _, executionTime, _, testErr := testTransaction(mid, nonce, true)
+			totalExecutionTime += executionTime
+			txExecTotal++
+			if testErr != nil && !reverted {
+				// Reverts are ignored in the binary search, but are checked later on
+				// during the execution for the optimal gas limit found
+				return 0, nil, testErr
+			}
 
-		if failed {
-			// If the transaction failed => increase the gas
-			lowEnd = mid + 1
-		} else {
-			// If the transaction didn't fail => make this ok value the high end
-			highEnd = mid
+			if failed {
+				// If the transaction failed => increase the gas
+				lowEnd = mid + 1
+			} else {
+				// If the transaction didn't fail => make this ok value the high end
+				highEnd = mid
+			}
 		}
 	}
 
-	executions := int64(len(txExecutions))
-	if executions > 0 {
-		log.Infof("%s, EstimateGas executed TX %v %d times in %d milliseconds", ctxID, transaction.Hash(), executions, totalExecutionTime.Milliseconds())
+	if txExecTotal > 0 {
+		log.Infof("%s, EstimateGas executed TX %v %d times in %d milliseconds", ctxID, transaction.Hash(), txExecTotal, totalExecutionTime)
 	} else {
 		log.Errorf("%s, Estimate gas. Tx not executed", ctxID)
 	}
