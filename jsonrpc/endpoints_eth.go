@@ -202,7 +202,7 @@ func (e *EthEndpoints) EstimateGas(arg *types.TxArgs, blockArg *types.BlockNumbe
 }
 
 // GasPrice returns the average gas price based on the last x blocks
-func (e *EthEndpoints) GasPrice() (interface{}, types.Error) {
+func (e *EthEndpoints) GasPrice(arg *types.TxArgs) (interface{}, types.Error) {
 	ctx := context.Background()
 	if e.cfg.SequencerNodeURI != "" {
 		return e.getPriceFromSequencerNode()
@@ -210,6 +210,23 @@ func (e *EthEndpoints) GasPrice() (interface{}, types.Error) {
 	gasPrices, err := e.pool.GetGasPrices(ctx)
 	if err != nil {
 		return "0x0", nil
+	}
+	if arg != nil {
+		discount := 1.0
+		if arg.From != nil {
+			discount = e.pool.GetDiscount(arg.From.Hex())
+		}
+		if arg.To != nil {
+			toDiscount := e.pool.GetDiscount(arg.To.Hex())
+			if discount > toDiscount {
+				discount = toDiscount
+			}
+		}
+		l2GasPrice := new(big.Float).SetUint64(gasPrices.L2GasPrice)
+		discountGasPrice := new(big.Float).Mul(l2GasPrice, new(big.Float).SetFloat64(discount))
+		gasPrice := new(big.Int)
+		discountGasPrice.Int(gasPrice)
+		return hex.EncodeUint64(gasPrice.Uint64()), nil
 	}
 	return hex.EncodeUint64(gasPrices.L2GasPrice), nil
 }

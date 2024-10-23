@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -399,6 +400,32 @@ func (p *Pool) IsTxPending(ctx context.Context, hash common.Hash) (bool, error) 
 	return p.storage.IsTxPending(ctx, hash)
 }
 
+func (p *Pool) GetDiscount(addr string) float64 {
+	val := 1.0
+	if addr == "0x0" || addr == "" {
+		return val
+	}
+	for _, act := range p.cfg.DiscountAccounts {
+		if strings.ToLower(act.Addr) == strings.ToLower(addr) {
+			val = act.Discount
+			break
+		}
+	}
+	if val < 0 || val > 1 {
+		val = 1
+	}
+	return val
+}
+
+func (p *Pool) IsDiscountAccount(addr common.Address) bool {
+	for _, act := range p.cfg.DiscountAccounts {
+		if strings.ToLower(act.Addr) == strings.ToLower(addr.Hex()) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Pool) validateTx(ctx context.Context, poolTx Transaction) error {
 	// Make sure the IP is valid.
 	if poolTx.IP != "" && !IsValidIP(poolTx.IP) {
@@ -497,12 +524,15 @@ func (p *Pool) validateTx(ctx context.Context, poolTx Transaction) error {
 	}
 
 	// Reject transactions with a gas price lower than the minimum gas price
-	p.minSuggestedGasPriceMux.RLock()
-	gasPriceCmp := poolTx.GasPrice().Cmp(p.minSuggestedGasPrice)
-	if gasPriceCmp == -1 {
-		log.Debugf("low gas price: minSuggestedGasPrice %v got %v", p.minSuggestedGasPrice, poolTx.GasPrice())
+	gasPriceCmp := 0
+	if !p.IsDiscountAccount(from) && !p.IsDiscountAccount(*poolTx.To()) {
+		p.minSuggestedGasPriceMux.RLock()
+		gasPriceCmp = poolTx.GasPrice().Cmp(p.minSuggestedGasPrice)
+		if gasPriceCmp == -1 {
+			log.Debugf("low gas price: minSuggestedGasPrice %v got %v", p.minSuggestedGasPrice, poolTx.GasPrice())
+		}
+		p.minSuggestedGasPriceMux.RUnlock()
 	}
-	p.minSuggestedGasPriceMux.RUnlock()
 	if gasPriceCmp == -1 {
 		return ErrGasPrice
 	}

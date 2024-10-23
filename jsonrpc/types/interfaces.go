@@ -23,6 +23,7 @@ type PoolInterface interface {
 	CountPendingTransactions(ctx context.Context) (uint64, error)
 	GetTxByHash(ctx context.Context, hash common.Hash) (*pool.Transaction, error)
 	CheckPolicy(ctx context.Context, policy pool.PolicyName, address common.Address) (bool, error)
+	GetDiscount(addr string) float64
 }
 
 // StateInterface gathers the methods required to interact with the state.

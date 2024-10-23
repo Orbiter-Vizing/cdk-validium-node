@@ -40,6 +40,13 @@ type Config struct {
 
 	// EffectiveGasPrice is the config for the effective gas price calculation
 	EffectiveGasPrice EffectiveGasPriceCfg `mapstructure:"EffectiveGasPrice"`
+
+	DiscountAccounts []DiscountAccount `mapstructure:"DiscountAccount"`
+}
+
+type DiscountAccount struct {
+	Addr     string  `mapstructure:"Addr"`
+	Discount float64 `mapstructure:"Discount"`
 }
 
 // EffectiveGasPriceCfg contains the configuration properties for the effective gas price
