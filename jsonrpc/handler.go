@@ -118,6 +118,10 @@ func (h *Handler) Handle(req handleRequest) types.Response {
 		inArgs[i+1] = val.Elem()
 	}
 
+	if req.Method == "eth_gasPrice" && req.Params == nil {
+		req.Params = json.RawMessage("[]")
+	}
+
 	if fd.numParams() > 0 {
 		if err := json.Unmarshal(req.Params, &inputs); err != nil {
 			return types.NewResponse(req.Request, nil, types.NewRPCError(types.InvalidParamsErrorCode, "Invalid Params"))
