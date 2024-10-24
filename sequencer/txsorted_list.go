@@ -56,7 +56,7 @@ func (e *txSortedList) delete(tx *TxTracker) bool {
 				return false
 			}
 
-			if (e.sorted[i].GasPrice.Cmp(tx.GasPrice)) != 0 {
+			if (e.sorted[i].SortGasPrice.Cmp(tx.SortGasPrice)) != 0 {
 				// we have a tx with different (lower) GasPrice than the tx we are looking for, therefore we haven't found the tx
 				log.Errorf("Error deleting tx (%s) from txSortedList, not found in the list of txs with same gasPrice: %s", tx.HashStr)
 				return false
@@ -107,7 +107,7 @@ func (e *txSortedList) Print() {
 
 	fmt.Println("Len: ", len(e.sorted))
 	for _, txi := range e.sorted {
-		fmt.Printf("Hash=%s, gasPrice=%d\n", txi.HashStr, txi.GasPrice)
+		fmt.Printf("Hash=%s, gasPrice=%d\n", txi.HashStr, txi.SortGasPrice)
 	}
 }
 
@@ -125,7 +125,7 @@ func (e *txSortedList) addSort(tx *TxTracker) {
 
 // isGreaterThan returns true if the tx1 has greater gasPrice than tx2
 func (e *txSortedList) isGreaterThan(tx1 *TxTracker, tx2 *TxTracker) bool {
-	cmp := tx1.GasPrice.Cmp(tx2.GasPrice)
+	cmp := tx1.SortGasPrice.Cmp(tx2.SortGasPrice)
 	if cmp == 1 {
 		return true
 	} else {
@@ -135,7 +135,7 @@ func (e *txSortedList) isGreaterThan(tx1 *TxTracker, tx2 *TxTracker) bool {
 
 // isGreaterOrEqualThan returns true if the tx1 has greater or equal gasPrice than tx2
 func (e *txSortedList) isGreaterOrEqualThan(tx1 *TxTracker, tx2 *TxTracker) bool {
-	cmp := tx1.GasPrice.Cmp(tx2.GasPrice)
+	cmp := tx1.SortGasPrice.Cmp(tx2.SortGasPrice)
 	if cmp >= 0 {
 		return true
 	} else {

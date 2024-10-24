@@ -29,6 +29,7 @@ type TxTracker struct {
 	EGPLog            state.EffectiveGasPriceLog
 	L1GasPrice        uint64
 	L2GasPrice        uint64
+	SortGasPrice      *big.Int
 }
 
 // newTxTracker creates and inti a TxTracker
@@ -44,14 +45,15 @@ func newTxTracker(tx types.Transaction, counters state.ZKCounters, ip string) (*
 	}
 
 	txTracker := &TxTracker{
-		Hash:     tx.Hash(),
-		HashStr:  tx.Hash().String(),
-		From:     addr,
-		FromStr:  addr.String(),
-		Nonce:    tx.Nonce(),
-		Gas:      tx.Gas(),
-		GasPrice: tx.GasPrice(),
-		Cost:     tx.Cost(),
+		Hash:         tx.Hash(),
+		HashStr:      tx.Hash().String(),
+		From:         addr,
+		FromStr:      addr.String(),
+		Nonce:        tx.Nonce(),
+		Gas:          tx.Gas(),
+		GasPrice:     tx.GasPrice(),
+		SortGasPrice: tx.GasPrice(),
+		Cost:         tx.Cost(),
 		BatchResources: state.BatchResources{
 			Bytes:      tx.Size(),
 			ZKCounters: counters,

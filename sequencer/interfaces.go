@@ -32,6 +32,7 @@ type txPool interface {
 	GetL1AndL2GasPrice() (uint64, uint64)
 	DeleteReorgedTransactions(ctx context.Context, txs []*ethTypes.Transaction) error
 	StoreTx(ctx context.Context, tx ethTypes.Transaction, ip string, isWIP bool) error
+	IsDiscountAccount(addr common.Address) bool
 }
 
 // etherman contains the methods required to interact with ethereum.
