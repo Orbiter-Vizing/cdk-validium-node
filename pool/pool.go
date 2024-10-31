@@ -417,7 +417,10 @@ func (p *Pool) GetDiscount(addr string) float64 {
 	return val
 }
 
-func (p *Pool) IsDiscountAccount(addr common.Address) bool {
+func (p *Pool) IsDiscountAccount(addr *common.Address) bool {
+	if addr == nil {
+		return false
+	}
 	for _, act := range p.cfg.DiscountAccounts {
 		if strings.ToLower(act.Addr) == strings.ToLower(addr.Hex()) {
 			return true
@@ -525,7 +528,7 @@ func (p *Pool) validateTx(ctx context.Context, poolTx Transaction) error {
 
 	// Reject transactions with a gas price lower than the minimum gas price
 	gasPriceCmp := 0
-	if !p.IsDiscountAccount(from) && !p.IsDiscountAccount(*poolTx.To()) {
+	if !p.IsDiscountAccount(&from) && !p.IsDiscountAccount(poolTx.To()) {
 		p.minSuggestedGasPriceMux.RLock()
 		gasPriceCmp = poolTx.GasPrice().Cmp(p.minSuggestedGasPrice)
 		if gasPriceCmp == -1 {

@@ -234,7 +234,7 @@ func (d *dbManager) addTxToWorker(tx pool.Transaction) error {
 	if err != nil {
 		return err
 	}
-	if d.txPool.IsDiscountAccount(txTracker.From) || d.txPool.IsDiscountAccount(*tx.To()) {
+	if d.txPool.IsDiscountAccount(&txTracker.From) || d.txPool.IsDiscountAccount(tx.To()) {
 		_, l2GasPrice := d.txPool.GetL1AndL2GasPrice()
 		txTracker.SortGasPrice = new(big.Int).SetUint64(l2GasPrice)
 	}
