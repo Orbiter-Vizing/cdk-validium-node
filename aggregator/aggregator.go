@@ -439,8 +439,11 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 		if !eligible {
 			return false, nil
 		}
-		finalBatch, _ := a.State.GetBatchByNumber(ctx, proof.BatchNumberFinal, nil)
-		if finalBatch != nil && finalBatch.LocalExitRoot == state.ZeroHash {
+	}
+	finalBatch, _ := a.State.GetBatchByNumber(ctx, proof.BatchNumberFinal, nil)
+	if finalBatch != nil {
+		log.Debugf("[tryBuildFinalProof] finalBatchNumber: %d, ler: %s", proof.BatchNumberFinal, finalBatch.LocalExitRoot.Hex())
+		if finalBatch.LocalExitRoot.Hex() == state.ZeroHash.Hex() || finalBatch.LocalExitRoot.Hex() == "0x0" {
 			return false, nil
 		}
 	}
