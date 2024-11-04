@@ -418,9 +418,9 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 		if err != nil {
 			return false, err
 		}
-
+		isLerZero := false
 		defer func() {
-			if err != nil {
+			if err != nil || isLerZero {
 				// Set the generating state to false for the proof ("unlock" it)
 				proof.GeneratingSince = nil
 				err2 := a.State.UpdateGeneratedProof(a.ctx, proof, nil)
@@ -429,6 +429,14 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 				}
 			}
 		}()
+		finalBatch, _ := a.State.GetBatchByNumber(ctx, proof.BatchNumberFinal, nil)
+		if finalBatch != nil {
+			log.Debugf("[tryBuildFinalProof] finalBatchNumber: %d, ler: %s", proof.BatchNumberFinal, finalBatch.LocalExitRoot.Hex())
+			if finalBatch.LocalExitRoot.Hex() == state.ZeroHash.Hex() || finalBatch.LocalExitRoot.Hex() == "0x0" {
+				isLerZero = true
+				return false, nil
+			}
+		}
 	} else {
 		// we do have a proof generating at the moment, check if it is
 		// eligible to be verified
@@ -437,13 +445,6 @@ func (a *Aggregator) tryBuildFinalProof(ctx context.Context, prover proverInterf
 			return false, fmt.Errorf("failed to validate eligible final proof, %w", err)
 		}
 		if !eligible {
-			return false, nil
-		}
-	}
-	finalBatch, _ := a.State.GetBatchByNumber(ctx, proof.BatchNumberFinal, nil)
-	if finalBatch != nil {
-		log.Debugf("[tryBuildFinalProof] finalBatchNumber: %d, ler: %s", proof.BatchNumberFinal, finalBatch.LocalExitRoot.Hex())
-		if finalBatch.LocalExitRoot.Hex() == state.ZeroHash.Hex() || finalBatch.LocalExitRoot.Hex() == "0x0" {
 			return false, nil
 		}
 	}
@@ -506,6 +507,13 @@ func (a *Aggregator) validateEligibleFinalProof(ctx context.Context, proof *stat
 	if !bComplete {
 		log.Infof("Recursive proof %d-%d not eligible to be verified: not containing complete sequences", proof.BatchNumber, proof.BatchNumberFinal)
 		return false, nil
+	}
+	finalBatch, _ := a.State.GetBatchByNumber(ctx, proof.BatchNumberFinal, nil)
+	if finalBatch != nil {
+		log.Debugf("[tryBuildFinalProof] finalBatchNumber: %d, ler: %s", proof.BatchNumberFinal, finalBatch.LocalExitRoot.Hex())
+		if finalBatch.LocalExitRoot.Hex() == state.ZeroHash.Hex() || finalBatch.LocalExitRoot.Hex() == "0x0" {
+			return false, nil
+		}
 	}
 	return true, nil
 }
