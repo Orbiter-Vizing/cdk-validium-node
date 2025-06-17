@@ -193,7 +193,7 @@ func (z *ZKEVMEndpoints) GetFullBlockByNumber(number types.BlockNumber, fullTx b
 			if err != nil {
 				return RPCErrorResponse(types.DefaultErrorCode, "couldn't load last block from state to compute the pending block", err, true)
 			}
-			header := ethTypes.CopyHeader(lastBlock.Header())
+			header := ethTypes.CopyHeader(lastBlock.Header().Header)
 			header.ParentHash = lastBlock.Hash()
 			header.Number = big.NewInt(0).SetUint64(lastBlock.Number().Uint64() + 1)
 			header.TxHash = ethTypes.EmptyRootHash
@@ -229,7 +229,7 @@ func (z *ZKEVMEndpoints) GetFullBlockByNumber(number types.BlockNumber, fullTx b
 			receipts = append(receipts, *receipt)
 		}
 
-		rpcBlock, err := types.NewBlock(block, receipts, fullTx, true)
+		rpcBlock, err := types.NewBlock(block.Block, receipts, fullTx, true)
 		if err != nil {
 			return RPCErrorResponse(types.DefaultErrorCode, fmt.Sprintf("couldn't build block response for block by number %v", blockNumber), err, true)
 		}
@@ -258,7 +258,7 @@ func (z *ZKEVMEndpoints) GetFullBlockByHash(hash types.ArgHash, fullTx bool) (in
 			receipts = append(receipts, *receipt)
 		}
 
-		rpcBlock, err := types.NewBlock(block, receipts, fullTx, true)
+		rpcBlock, err := types.NewBlock(block.Block, receipts, fullTx, true)
 		if err != nil {
 			return RPCErrorResponse(types.DefaultErrorCode, fmt.Sprintf("couldn't build block response for block by hash %v", hash.Hash()), err, true)
 		}

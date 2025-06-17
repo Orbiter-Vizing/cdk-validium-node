@@ -163,24 +163,28 @@ func (s *State) SetGenesis(ctx context.Context, block Block, genesis Genesis, db
 	}
 
 	// store L2 genesis block
-	header := &types.Header{
+	header := NewL2Header(&types.Header{
 		Number:     big.NewInt(0),
 		ParentHash: ZeroHash,
 		Coinbase:   ZeroAddress,
 		Root:       root,
 		Time:       uint64(block.ReceivedAt.Unix()),
-	}
+	})
 	rootHex := root.Hex()
 	log.Info("Genesis root ", rootHex)
 
 	receipts := []*types.Receipt{}
-	l2Block := types.NewBlock(header, []*types.Transaction{}, []*types.Header{}, receipts, &trie.StackTrie{})
+	st := trie.NewStackTrie(nil)
+	l2Block := NewL2Block(header, []*types.Transaction{}, []*L2Header{}, receipts, st)
 	l2Block.ReceivedAt = block.ReceivedAt
 
 	storeTxsEGPData := []StoreTxEGPData{}
-	for range l2Block.Transactions() {
-		storeTxsEGPData = append(storeTxsEGPData, StoreTxEGPData{EGPLog: nil, EffectivePercentage: MaxEffectivePercentage})
+	txsL2Hash := []common.Hash{}
+
+	err = s.AddL2Block(ctx, batch.BatchNumber, l2Block, receipts, txsL2Hash, storeTxsEGPData, []common.Hash{}, dbTx)
+	if err != nil {
+		return []byte{}, err
 	}
 
-	return newRoot, s.AddL2Block(ctx, batch.BatchNumber, l2Block, receipts, storeTxsEGPData, dbTx)
+	return newRoot, nil
 }

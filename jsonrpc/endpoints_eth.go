@@ -275,7 +275,7 @@ func (e *EthEndpoints) getBlockByArg(ctx context.Context, blockArg *types.BlockN
 		if err != nil {
 			return nil, types.NewRPCError(types.DefaultErrorCode, "failed to get the last block number from state")
 		}
-		return block, nil
+		return block.Block, nil
 	}
 
 	// If we have a block hash, try to get the block by hash
@@ -286,7 +286,7 @@ func (e *EthEndpoints) getBlockByArg(ctx context.Context, blockArg *types.BlockN
 		} else if err != nil {
 			return nil, types.NewRPCError(types.DefaultErrorCode, fmt.Sprintf("failed to get block by hash %v", blockArg.Hash().Hash()))
 		}
-		return block, nil
+		return block.Block, nil
 	}
 
 	// Otherwise, try to get the block by number
@@ -301,7 +301,7 @@ func (e *EthEndpoints) getBlockByArg(ctx context.Context, blockArg *types.BlockN
 		return nil, types.NewRPCError(types.DefaultErrorCode, fmt.Sprintf("failed to get block by number %v", blockNum))
 	}
 
-	return block, nil
+	return block.Block, nil
 }
 
 // GetBlockByHash returns information about a block by hash
@@ -324,7 +324,7 @@ func (e *EthEndpoints) GetBlockByHash(hash types.ArgHash, fullTx bool) (interfac
 			receipts = append(receipts, *receipt)
 		}
 
-		rpcBlock, err := types.NewBlock(block, receipts, fullTx, false)
+		rpcBlock, err := types.NewBlock(block.Block, receipts, fullTx, false)
 		if err != nil {
 			return RPCErrorResponse(types.DefaultErrorCode, fmt.Sprintf("couldn't build block response for block by hash %v", hash.Hash()), err, true)
 		}
@@ -341,7 +341,7 @@ func (e *EthEndpoints) GetBlockByNumber(number types.BlockNumber, fullTx bool) (
 			if err != nil {
 				return RPCErrorResponse(types.DefaultErrorCode, "couldn't load last block from state to compute the pending block", err, true)
 			}
-			header := ethTypes.CopyHeader(lastBlock.Header())
+			header := ethTypes.CopyHeader(lastBlock.Header().Header)
 			header.ParentHash = lastBlock.Hash()
 			header.Number = big.NewInt(0).SetUint64(lastBlock.Number().Uint64() + 1)
 			header.TxHash = ethTypes.EmptyRootHash
@@ -377,7 +377,7 @@ func (e *EthEndpoints) GetBlockByNumber(number types.BlockNumber, fullTx bool) (
 			receipts = append(receipts, *receipt)
 		}
 
-		rpcBlock, err := types.NewBlock(block, receipts, fullTx, false)
+		rpcBlock, err := types.NewBlock(block.Block, receipts, fullTx, false)
 		if err != nil {
 			return RPCErrorResponse(types.DefaultErrorCode, fmt.Sprintf("couldn't build block response for block by number %v", blockNumber), err, true)
 		}
@@ -1097,7 +1097,7 @@ func (e *EthEndpoints) notifyNewHeads(wg *sync.WaitGroup, event state.NewL2Block
 	defer wg.Done()
 	start := time.Now()
 
-	b, err := types.NewBlock(&event.Block, nil, false, false)
+	b, err := types.NewBlock(event.Block.Block, nil, false, false)
 	if err != nil {
 		log.Errorf("failed to build block response to subscription: %v", err)
 		return

@@ -355,7 +355,7 @@ type Batch struct {
 }
 
 // NewBatch creates a Batch instance
-func NewBatch(batch *state.Batch, virtualBatch *state.VirtualBatch, verifiedBatch *state.VerifiedBatch, blocks []types.Block, receipts []types.Receipt, fullTx, includeReceipts bool, ger *state.GlobalExitRoot) (*Batch, error) {
+func NewBatch(batch *state.Batch, virtualBatch *state.VirtualBatch, verifiedBatch *state.VerifiedBatch, blocks []state.L2Block, receipts []types.Receipt, fullTx, includeReceipts bool, ger *state.GlobalExitRoot) (*Batch, error) {
 	batchL2Data := batch.BatchL2Data
 	closed := batch.StateRoot.String() != state.ZeroHash.String() || batch.BatchNumber == 0
 	res := &Batch{
@@ -409,7 +409,7 @@ func NewBatch(batch *state.Batch, virtualBatch *state.VirtualBatch, verifiedBatc
 	for _, b := range blocks {
 		b := b
 		if fullTx {
-			block, err := NewBlock(&b, nil, false, false)
+			block, err := NewBlock(b.Block, nil, false, false)
 			if err != nil {
 				return nil, err
 			}

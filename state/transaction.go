@@ -179,7 +179,7 @@ func (s *State) StoreTransactions(ctx context.Context, batchNumber uint64, proce
 			return err
 		}
 
-		header := &types.Header{
+		header := NewL2Header(&types.Header{
 			Number:     new(big.Int).SetUint64(lastL2Block.Number().Uint64() + 1),
 			ParentHash: lastL2Block.Hash(),
 			Coinbase:   processingContext.Coinbase,
@@ -187,7 +187,7 @@ func (s *State) StoreTransactions(ctx context.Context, batchNumber uint64, proce
 			GasUsed:    processedTx.GasUsed,
 			GasLimit:   s.cfg.MaxCumulativeGasUsed,
 			Time:       uint64(processingContext.Timestamp.Unix()),
-		}
+		})
 		transactions := []*types.Transaction{&processedTx.Tx}
 
 		receipt := generateReceipt(header.Number, processedTx)
@@ -197,7 +197,8 @@ func (s *State) StoreTransactions(ctx context.Context, batchNumber uint64, proce
 		receipts := []*types.Receipt{receipt}
 
 		// Create block to be able to calculate its hash
-		block := types.NewBlock(header, transactions, []*types.Header{}, receipts, &trie.StackTrie{})
+		st := trie.NewStackTrie(nil)
+		block := NewL2Block(header, transactions, []*L2Header{}, receipts, st)
 		block.ReceivedAt = processingContext.Timestamp
 
 		receipt.BlockHash = block.Hash()
@@ -206,9 +207,10 @@ func (s *State) StoreTransactions(ctx context.Context, batchNumber uint64, proce
 		if txsEGPLog != nil {
 			storeTxsEGPData[0].EGPLog = txsEGPLog[i]
 		}
-
+		imStateRoots := []common.Hash{processedTx.StateRoot}
+		txsL2Hash := []common.Hash{processedTx.TxHash}
 		// Store L2 block and its transaction
-		if err := s.AddL2Block(ctx, batchNumber, block, receipts, storeTxsEGPData, dbTx); err != nil {
+		if err := s.AddL2Block(ctx, batchNumber, block, receipts, txsL2Hash, storeTxsEGPData, imStateRoots, dbTx); err != nil {
 			return err
 		}
 	}
@@ -939,7 +941,7 @@ func (s *State) isContractCreation(tx *types.Transaction) bool {
 }
 
 // StoreTransaction is used by the sequencer and trusted state synchronizer to add process a transaction.
-func (s *State) StoreTransaction(ctx context.Context, batchNumber uint64, processedTx *ProcessTransactionResponse, coinbase common.Address, timestamp uint64, egpLog *EffectiveGasPriceLog, dbTx pgx.Tx) (*types.Header, error) {
+func (s *State) StoreTransaction(ctx context.Context, batchNumber uint64, processedTx *ProcessTransactionResponse, coinbase common.Address, timestamp uint64, egpLog *EffectiveGasPriceLog, dbTx pgx.Tx) (*L2Header, error) {
 	if dbTx == nil {
 		return nil, ErrDBTxNil
 	}
@@ -955,7 +957,7 @@ func (s *State) StoreTransaction(ctx context.Context, batchNumber uint64, proces
 		return nil, err
 	}
 
-	header := &types.Header{
+	header := NewL2Header(&types.Header{
 		Number:     new(big.Int).SetUint64(lastL2Block.Number().Uint64() + 1),
 		ParentHash: lastL2Block.Hash(),
 		Coinbase:   coinbase,
@@ -963,22 +965,24 @@ func (s *State) StoreTransaction(ctx context.Context, batchNumber uint64, proces
 		GasUsed:    processedTx.GasUsed,
 		GasLimit:   s.cfg.MaxCumulativeGasUsed,
 		Time:       timestamp,
-	}
+	})
 	transactions := []*types.Transaction{&processedTx.Tx}
 
 	receipt := generateReceipt(header.Number, processedTx)
 	receipts := []*types.Receipt{receipt}
+	imStateRoots := []common.Hash{processedTx.StateRoot}
 
+	st := trie.NewStackTrie(nil)
 	// Create block to be able to calculate its hash
-	block := types.NewBlock(header, transactions, []*types.Header{}, receipts, &trie.StackTrie{})
+	block := NewL2Block(header, transactions, []*L2Header{}, receipts, st)
 	block.ReceivedAt = time.Unix(int64(timestamp), 0).UTC()
 
 	receipt.BlockHash = block.Hash()
 
 	storeTxsEGPData := []StoreTxEGPData{{EGPLog: egpLog, EffectivePercentage: uint8(processedTx.EffectivePercentage)}}
-
+	txsL2Hash := []common.Hash{processedTx.TxHash}
 	// Store L2 block and its transaction
-	if err := s.AddL2Block(ctx, batchNumber, block, receipts, storeTxsEGPData, dbTx); err != nil {
+	if err := s.AddL2Block(ctx, batchNumber, block, receipts, txsL2Hash, storeTxsEGPData, imStateRoots, dbTx); err != nil {
 		return nil, err
 	}
 
@@ -1039,7 +1043,7 @@ func (s *State) EstimateGas(transaction *types.Transaction, senderAddress common
 		previousBatch = lastBatches[1]
 	}
 
-	lowEnd, err = core.IntrinsicGas(transaction.Data(), transaction.AccessList(), s.isContractCreation(transaction), true, false, false)
+	lowEnd, err = core.IntrinsicGas(transaction.Data(), transaction.AccessList(), transaction.SetCodeAuthorizations(), s.isContractCreation(transaction), true, false, false)
 	if err != nil {
 		return 0, nil, err
 	}

@@ -461,25 +461,25 @@ func (s *ClientSynchronizer) syncBlocksSequential(lastEthBlockSynced *state.Bloc
 		}
 		if len(blocks) == 0 { // If there is no events in the checked blocks range and lastKnownBlock > fromBlock.
 			// Store the latest block of the block range. Get block info and process the block
-			fb, err := s.etherMan.HeaderByNumber(s.ctx, big.NewInt(0).SetUint64(toBlock))
+			fb, err := s.etherMan.EthBlockByNumber(s.ctx, toBlock)
 			if err != nil {
 				return lastEthBlockSynced, err
 			}
 			b := etherman.Block{
-				BlockNumber: fb.Number.Uint64(),
+				BlockNumber: fb.NumberU64(),
 				BlockHash:   fb.Hash(),
-				ParentHash:  fb.ParentHash,
-				ReceivedAt:  time.Unix(int64(fb.Time), 0),
+				ParentHash:  fb.ParentHash(),
+				ReceivedAt:  time.Unix(int64(fb.Time()), 0),
 			}
 			err = s.processBlockRange([]etherman.Block{b}, order)
 			if err != nil {
 				return lastEthBlockSynced, err
 			}
 			block := state.Block{
-				BlockNumber: fb.Number.Uint64(),
+				BlockNumber: fb.NumberU64(),
 				BlockHash:   fb.Hash(),
-				ParentHash:  fb.ParentHash,
-				ReceivedAt:  time.Unix(int64(fb.Time), 0),
+				ParentHash:  fb.ParentHash(),
+				ReceivedAt:  time.Unix(int64(fb.Time()), 0),
 			}
 			lastEthBlockSynced = &block
 			log.Debug("Storing empty block. BlockNumber: ", b.BlockNumber, ". BlockHash: ", b.BlockHash)
@@ -710,26 +710,26 @@ func (s *ClientSynchronizer) checkReorg(latestBlock *state.Block) (*state.Block,
 	latestEthBlockSynced := *latestBlock
 	var depth uint64
 	for {
-		block, err := s.etherMan.HeaderByNumber(s.ctx, big.NewInt(0).SetUint64(latestBlock.BlockNumber))
+		block, err := s.etherMan.EthBlockByNumber(s.ctx, latestBlock.BlockNumber)
 		if err != nil {
 			log.Errorf("error getting latest block synced from blockchain. Block: %d, error: %v", latestBlock.BlockNumber, err)
 			return nil, err
 		}
-		if block.Number.Uint64() != latestBlock.BlockNumber {
+		if block.NumberU64() != latestBlock.BlockNumber {
 			err = fmt.Errorf("wrong ethereum block retrieved from blockchain. Block numbers don't match. BlockNumber stored: %d. BlockNumber retrieved: %d",
-				latestBlock.BlockNumber, block.Number.Uint64())
+				latestBlock.BlockNumber, block.NumberU64())
 			log.Error("error: ", err)
 			return nil, err
 		}
 		// Compare hashes
-		if (block.Hash() != latestBlock.BlockHash || block.ParentHash != latestBlock.ParentHash) && latestBlock.BlockNumber > s.genesis.GenesisBlockNum {
-			log.Infof("checkReorg: Bad block %d hashOk %t parentHashOk %t", latestBlock.BlockNumber, block.Hash() == latestBlock.BlockHash, block.ParentHash == latestBlock.ParentHash)
+		if (block.Hash() != latestBlock.BlockHash || block.ParentHash() != latestBlock.ParentHash) && latestBlock.BlockNumber > s.genesis.GenesisBlockNum {
+			log.Infof("checkReorg: Bad block %d hashOk %t parentHashOk %t", latestBlock.BlockNumber, block.Hash() == latestBlock.BlockHash, block.ParentHash() == latestBlock.ParentHash)
 			log.Debug("[checkReorg function] => latestBlockNumber: ", latestBlock.BlockNumber)
 			log.Debug("[checkReorg function] => latestBlockHash: ", latestBlock.BlockHash)
 			log.Debug("[checkReorg function] => latestBlockHashParent: ", latestBlock.ParentHash)
-			log.Debug("[checkReorg function] => BlockNumber: ", latestBlock.BlockNumber, block.Number.Uint64())
+			log.Debug("[checkReorg function] => BlockNumber: ", latestBlock.BlockNumber, block.NumberU64())
 			log.Debug("[checkReorg function] => BlockHash: ", block.Hash())
-			log.Debug("[checkReorg function] => BlockHashParent: ", block.ParentHash)
+			log.Debug("[checkReorg function] => BlockHashParent: ", block.ParentHash())
 			depth++
 			log.Debug("REORG: Looking for the latest correct ethereum block. Depth: ", depth)
 			// Reorg detected. Getting previous block

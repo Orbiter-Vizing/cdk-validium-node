@@ -15,8 +15,22 @@ import (
 	"github.com/0xPolygonHermez/zkevm-node/state/runtime"
 	"github.com/0xPolygonHermez/zkevm-node/state/runtime/executor"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
+)
+
+const (
+	MaxInt8   = 1<<7 - 1
+	MinInt8   = -1 << 7
+	MaxInt16  = 1<<15 - 1
+	MinInt16  = -1 << 15
+	MaxInt32  = 1<<31 - 1
+	MinInt32  = -1 << 31
+	MaxInt64  = 1<<63 - 1
+	MinInt64  = -1 << 63
+	MaxUint8  = 1<<8 - 1
+	MaxUint16 = 1<<16 - 1
+	MaxUint32 = 1<<32 - 1
+	MaxUint64 = 1<<64 - 1
 )
 
 var (
@@ -638,7 +652,7 @@ func (p *Pool) pollMinSuggestedGasPrice(ctx context.Context) {
 // To: 160 bits
 // ChainId: 64 bits
 func (p *Pool) checkTxFieldCompatibilityWithExecutor(ctx context.Context, tx types.Transaction) error {
-	maxUint64BigInt := big.NewInt(0).SetUint64(math.MaxUint64)
+	maxUint64BigInt := big.NewInt(0).SetUint64(MaxUint64)
 
 	// GasLimit, Nonce and To fields are limited by their types, no need to check
 	// Gas Price and Value are checked against the balance, and the max balance allowed
@@ -652,7 +666,7 @@ func (p *Pool) checkTxFieldCompatibilityWithExecutor(ctx context.Context, tx typ
 	}
 
 	if tx.ChainId().Cmp(maxUint64BigInt) == 1 {
-		return fmt.Errorf("chain id higher than allowed, max allowed is %v", uint64(math.MaxUint64))
+		return fmt.Errorf("chain id higher than allowed, max allowed is %v", uint64(MaxUint64))
 	}
 
 	return nil
@@ -717,13 +731,13 @@ func IntrinsicGas(tx types.Transaction) (uint64, error) {
 		}
 		// Make sure we don't exceed uint64 for all data combinations
 		nonZeroGas := txDataNonZeroGas
-		if (math.MaxUint64-gas)/nonZeroGas < nz {
+		if (MaxUint64-gas)/nonZeroGas < nz {
 			return 0, ErrGasUintOverflow
 		}
 		gas += nz * nonZeroGas
 
 		z := dataLen - nz
-		if (math.MaxUint64-gas)/txDataZeroGas < z {
+		if (MaxUint64-gas)/txDataZeroGas < z {
 			return 0, ErrGasUintOverflow
 		}
 		gas += z * txDataZeroGas

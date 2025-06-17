@@ -2,7 +2,11 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"github.com/ethereum/go-ethereum/common"
+	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,7 +23,7 @@ type NewL2BlockEventHandler func(e NewL2BlockEvent)
 // NewL2BlockEvent is a struct provided from the state to the NewL2BlockEventHandler
 // when a new l2 block is detected with data related to this new l2 block.
 type NewL2BlockEvent struct {
-	Block types.Block
+	Block L2Block
 	Logs  []*types.Log
 }
 
@@ -131,5 +135,144 @@ func (s *State) handleEvents() {
 			}(handler, newL2BlockEvent)
 		}
 		wg.Wait()
+	}
+}
+
+type gethHeader struct {
+	*types.Header
+}
+type gethBlock struct {
+	*types.Block
+}
+
+type L2Header struct {
+	*gethHeader
+}
+
+func NewL2Header(h *types.Header) *L2Header {
+	return &L2Header{gethHeader: &gethHeader{types.CopyHeader(h)}}
+}
+
+func (h *L2Header) Hash() common.Hash {
+	return h.gethHeader.Hash()
+}
+
+func (h *L2Header) MarshalJSON() ([]byte, error) {
+	m := map[string]interface{}{}
+
+	if h.gethHeader != nil && h.gethHeader.Header != nil {
+		b, err := json.Marshal(h.gethHeader.Header)
+		if err != nil {
+			return nil, err
+		}
+		err = json.Unmarshal(b, &m)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func (h *L2Header) UnmarshalJSON(input []byte) error {
+	str := strings.Trim(string(input), "\"")
+	if strings.ToLower(strings.TrimSpace(str)) == "null" {
+		return nil
+	}
+
+	var header *types.Header
+	err := json.Unmarshal(input, &header)
+	if err != nil {
+		return err
+	}
+
+	m := map[string]interface{}{}
+	err = json.Unmarshal(input, &m)
+	if err != nil {
+		return err
+	}
+
+	h.gethHeader = &gethHeader{header}
+	return nil
+}
+
+type L2Block struct {
+	*gethBlock
+	header *L2Header
+	uncles []*L2Header
+
+	ReceivedAt   time.Time
+	ReceivedFrom interface{}
+}
+
+func (b *L2Block) Header() *L2Header {
+	return CopyHeader(b.header)
+}
+
+func (b *L2Block) Number() *big.Int {
+	return b.header.Number
+}
+
+func NewL2Block(h *L2Header, txs []*types.Transaction, uncles []*L2Header, receipts []*types.Receipt, hasher types.TrieHasher) *L2Block {
+	l2Uncles := make([]*L2Header, 0, len(uncles))
+	gethUncles := make([]*types.Header, 0, len(uncles))
+	for _, uncle := range uncles {
+		l2Uncles = append(l2Uncles, CopyHeader(uncle))
+		gethUncles = append(gethUncles, types.CopyHeader(uncle.gethHeader.Header))
+	}
+
+	cpy := CopyHeader(h)
+	body := &types.Body{
+		Transactions: txs,
+		Uncles:       gethUncles,
+		Withdrawals:  nil,
+	}
+	b := types.NewBlock(h.gethHeader.Header, body, receipts, hasher)
+	cpy.gethHeader = &gethHeader{b.Header()}
+	return &L2Block{
+		header:    cpy,
+		gethBlock: &gethBlock{b},
+		uncles:    l2Uncles,
+	}
+}
+
+func CopyHeader(h *L2Header) *L2Header {
+	if h == nil {
+		return nil
+	}
+	cpy := *h
+	cpy.gethHeader = &gethHeader{types.CopyHeader(h.gethHeader.Header)}
+	return &cpy
+}
+
+func NewL2BlockWithHeader(h *L2Header) *L2Block {
+	b := types.NewBlockWithHeader(h.gethHeader.Header)
+	return &L2Block{
+		header:    CopyHeader(h),
+		gethBlock: &gethBlock{b},
+	}
+}
+
+func (b *L2Block) WithBody(transactions []*types.Transaction, uncles []*L2Header) *L2Block {
+	l2Uncles := make([]*L2Header, 0, len(uncles))
+	gethUncles := make([]*types.Header, 0, len(uncles))
+	for _, uncle := range uncles {
+		l2Uncles = append(l2Uncles, CopyHeader(uncle))
+		gethUncles = append(gethUncles, types.CopyHeader(uncle.gethHeader.Header))
+	}
+
+	return &L2Block{
+		header: b.header,
+		gethBlock: &gethBlock{b.gethBlock.WithBody(types.Body{
+			Transactions: transactions,
+			Uncles:       gethUncles,
+		},
+		)},
+		uncles: l2Uncles,
 	}
 }
